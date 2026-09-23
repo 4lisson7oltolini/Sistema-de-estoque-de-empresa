@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="PdvSistema.API/PdvSistema.API.csproj" />
+  <Project Path="PdvSistema.Domain/PdvSistema.Domain.csproj" />
+  <Project Path="PdvSistema.Infrastructure/PdvSistema.Infrastructure.csproj" />
+  <Project Path="PdvSistema.Tests/PdvSistema.Tests.csproj" />
+</Solution>
