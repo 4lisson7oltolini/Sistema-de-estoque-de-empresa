@@ -1,3 +1,4 @@
+using PdvSistema.Domain.Enums;
 namespace PdvSistema.Domain.Entities
 {
     public enum FormaPagamento { Dinheiro, Cartao, Pix }
@@ -30,5 +31,9 @@ namespace PdvSistema.Domain.Entities
                 PrecoUnitario = produto.PrecoVenda
             });
         }
+        public StatusVenda Status { get; private set; } = StatusVenda.Pendente;
+
+        public void Concluir() => Status = StatusVenda.Concluida;
+        public void Cancelar() => Status = StatusVenda.Cancelada;
     }
 }

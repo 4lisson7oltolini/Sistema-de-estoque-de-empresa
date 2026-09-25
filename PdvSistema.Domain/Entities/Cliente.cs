@@ -2,15 +2,34 @@ namespace PdvSistema.Domain.Entities;
 
 public class Cliente
 {
-    public int Id { get; set; }
+    public int Id { get; private set; }
+    public string Nome { get; private set; } = null!;
+    public string? Documento { get; private set; } // CPF ou CNPJ
+    public string? Telefone { get; private set; }
+    public string? Email { get; private set; }
+    public DateTime DataCadastro { get; private set; }
 
-    public string Nome { get; set; } = string.Empty;
+    protected Cliente() { } // EF Core
 
-    public string Cpf { get; set; } = string.Empty;
+    public Cliente(string nome, string? documento, string? telefone, string? email)
+    {
+        if (string.IsNullOrWhiteSpace(nome))
+            throw new ArgumentException("O nome do cliente é obrigatório.");
 
-    public string? Email { get; set; }
+        Nome = nome;
+        Documento = documento;
+        Telefone = telefone;
+        Email = email;
+        DataCadastro = DateTime.UtcNow;
+    }
 
-    public string? Telefone { get; set; }
+    public void AtualizarDados(string nome, string? telefone, string? email)
+    {
+        if (string.IsNullOrWhiteSpace(nome))
+            throw new ArgumentException("O nome do cliente é obrigatório.");
 
-    public DateTime DataCadastro { get; set; } = DateTime.UtcNow;
+        Nome = nome;
+        Telefone = telefone;
+        Email = email;
+    }
 }

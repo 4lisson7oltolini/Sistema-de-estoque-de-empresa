@@ -27,5 +27,16 @@ namespace PdvSistema.Domain.Entities
 
             QuantidadeEstoque += quantidade;
         }
+
+        public void RemoverEstoque(int quantidade)
+        {
+            if (quantidade <= 0)
+                throw new ArgumentException("Quantidade deve ser maior que zero.");
+
+            if (quantidade > QuantidadeEstoque)
+                throw new InvalidOperationException($"Estoque insuficiente.");
+
+            QuantidadeEstoque -= quantidade;
+        }
     }
 }

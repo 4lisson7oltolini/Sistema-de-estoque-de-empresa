@@ -1,13 +1,8 @@
 using PdvSistema.Domain.Entities;
+namespace PdvSistema.Domain.Interfaces;
 
-namespace PdvSistema.Domain.Interfaces
+public interface IProdutoRepository : IRepository<Produto>
 {
-    public interface IProdutoRepository
-    {
-        Task<Produto?> ObterPorIdAsync(int id);
-        Task<IEnumerable<Produto>> ListarTodosAsync();
-        Task AdicionarAsync(Produto produto);
-        Task AtualizarAsync(Produto produto);
-        Task RemoverAsync(int id);
-    }
+    Task<Produto?> ObterPorIdComCategoriaAsync(int id);
+    Task<List<Produto>> ObterPorCategoriaAsync(int categoriaId);
 }
