@@ -9,10 +9,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Entity Framework Core + SQLite
 builder.Services.AddDbContext<PdvSistemaDbContext>(options =>
-    options.UseSqliteServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlite(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    ));
 
+// Repositories
 builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
+
+// Unit of Work
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 var app = builder.Build();

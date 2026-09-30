@@ -1,39 +1,55 @@
-using PdvSistema.Domain.Enums;
-namespace PdvSistema.Domain.Entities
+namespace PdvSistema.Domain.Entities;
+
+public class Venda
 {
-    public enum FormaPagamento { Dinheiro, Cartao, Pix }
+    public int Id { get; set; }
 
-    public class Venda
+    public DateTime Data { get; set; } = DateTime.Now;
+
+    public int? ClienteId { get; set; }
+
+    public Cliente? Cliente { get; set; }
+
+    public int UsuarioId { get; set; }
+
+    public string FormaPagamento { get; set; } = string.Empty;
+
+    private readonly List<ItemVenda> _itens = new();
+
+    public IReadOnlyCollection<ItemVenda> Itens => _itens.AsReadOnly();
+
+    public decimal ValorTotal => _itens.Sum(i => i.Subtotal);
+
+    public string Status { get; private set; } = "Pendente";
+
+    public void AdicionarItem(Produto produto, int quantidade)
     {
-        public int Id { get; set; }
-        public DateTime Data { get; set; } = DateTime.Now;
-        public int? ClienteId { get; set; }
-        public int UsuarioId { get; set; }
-        public FormaPagamento FormaPagamento { get; set; }
-
-        private readonly List<ItemVenda> _itens = new();
-        public IReadOnlyCollection<ItemVenda> Itens => _itens.AsReadOnly();
-
-        public decimal ValorTotal => _itens.Sum(i => i.Subtotal);
-
-        public void AdicionarItem(Produto produto, int quantidade)
+        if (quantidade <= 0)
         {
-            if (quantidade <= 0)
-                throw new ArgumentException("Quantidade deve ser maior que zero.");
-
-            produto.BaixarEstoque(quantidade); // já lança exceção se não tiver estoque
-
-            _itens.Add(new ItemVenda
-            {
-                ProdutoId = produto.Id,
-                Produto = produto,
-                Quantidade = quantidade,
-                PrecoUnitario = produto.PrecoVenda
-            });
+            throw new ArgumentException(
+                "Quantidade deve ser maior que zero.",
+                nameof(quantidade)
+            );
         }
-        public StatusVenda Status { get; private set; } = StatusVenda.Pendente;
 
-        public void Concluir() => Status = StatusVenda.Concluida;
-        public void Cancelar() => Status = StatusVenda.Cancelada;
+        produto.BaixarEstoque(quantidade);
+
+        _itens.Add(new ItemVenda
+        {
+            ProdutoId = produto.Id,
+            Produto = produto,
+            Quantidade = quantidade,
+            PrecoUnitario = produto.PrecoVenda
+        });
+    }
+
+    public void Concluir()
+    {
+        Status = "Concluida";
+    }
+
+    public void Cancelar()
+    {
+        Status = "Cancelada";
     }
 }

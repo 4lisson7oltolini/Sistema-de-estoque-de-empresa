@@ -2,47 +2,98 @@ using Microsoft.AspNetCore.Mvc;
 using PdvSistema.Domain.Entities;
 using PdvSistema.Domain.Interfaces;
 
-namespace PdvSistema.API.Controllers
+namespace PdvSistema.API.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class ProdutoController : ControllerBase
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class ProdutoController : ControllerBase
+    private readonly IProdutoRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+
+    public ProdutoController(
+        IProdutoRepository repository,
+        IUnitOfWork unitOfWork)
     {
-        private readonly IProdutoRepository _repository;
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
 
-        public ProdutoController(IProdutoRepository repository) => _repository = repository;
+    [HttpGet]
+    public async Task<IActionResult> Listar()
+    {
+        var produtos = await _repository.ObterTodosAsync();
 
-        [HttpGet]
-        public async Task<IActionResult> Listar() =>
-            Ok(await _repository.ListarTodosAsync());
+        return Ok(produtos);
+    }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> ObterPorId(int id)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> ObterPorId(int id)
+    {
+        var produto = await _repository.ObterPorIdAsync(id);
+
+        if (produto is null)
         {
-            var produto = await _repository.ObterPorIdAsync(id);
-            return produto is null ? NotFound() : Ok(produto);
+            return NotFound();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> Criar(Produto produto)
+        return Ok(produto);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Criar(Produto produto)
+    {
+        await _repository.AdicionarAsync(produto);
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return CreatedAtAction(
+            nameof(ObterPorId),
+            new { id = produto.Id },
+            produto
+        );
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Atualizar(
+        int id,
+        Produto produto)
+    {
+        if (id != produto.Id)
         {
-            await _repository.AdicionarAsync(produto);
-            return CreatedAtAction(nameof(ObterPorId), new { id = produto.Id }, produto);
+            return BadRequest();
         }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Atualizar(int id, Produto produto)
+        var produtoExistente =
+            await _repository.ObterPorIdAsync(id);
+
+        if (produtoExistente is null)
         {
-            if (id != produto.Id) return BadRequest();
-            await _repository.AtualizarAsync(produto);
-            return NoContent();
+            return NotFound();
         }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Remover(int id)
+        _repository.Atualizar(produto);
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Remover(int id)
+    {
+        var produto =
+            await _repository.ObterPorIdAsync(id);
+
+        if (produto is null)
         {
-            await _repository.RemoverAsync(id);
-            return NoContent();
+            return NotFound();
         }
+
+        _repository.Remover(produto);
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return NoContent();
     }
 }
