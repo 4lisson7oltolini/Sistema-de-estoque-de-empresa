@@ -1,6 +1,4 @@
 @PdvSistema.API_HostAddress = http://localhost:5177
 
-GET {{PdvSistema.API_HostAddress}}/weatherforecast/
+GET {{PdvSistema.API_HostAddress}}/api/Produto
 Accept: application/json
-
-###

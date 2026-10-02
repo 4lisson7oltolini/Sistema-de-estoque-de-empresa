@@ -3,4 +3,5 @@
   <Project Path="PdvSistema.Domain/PdvSistema.Domain.csproj" />
   <Project Path="PdvSistema.Infrastructure/PdvSistema.Infrastructure.csproj" />
   <Project Path="PdvSistema.Tests/PdvSistema.Tests.csproj" />
+  <Project Path="PdvSistema.Web/PdvSistema.Web.csproj" />
 </Solution>

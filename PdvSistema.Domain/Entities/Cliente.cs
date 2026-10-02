@@ -2,12 +2,12 @@ namespace PdvSistema.Domain.Entities;
 
 public class Cliente
 {
-    public int Id { get; private set; }
-    public string Nome { get; private set; } = null!;
-    public string? Documento { get; private set; } // CPF ou CNPJ
-    public string? Telefone { get; private set; }
-    public string? Email { get; private set; }
-    public DateTime DataCadastro { get; private set; }
+    public int Id { get; set; }
+    public string Nome { get; set; } = null!;
+    public string? Documento { get; set; } // CPF ou CNPJ
+    public string? Telefone { get; set; }
+    public string? Email { get; set; }
+    public DateTime DataCadastro { get; set; }
 
     protected Cliente() { } // EF Core
 

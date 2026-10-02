@@ -2,13 +2,13 @@ namespace PdvSistema.Domain.Entities;
 using PdvSistema.Domain.Enums;
 public class Usuario
 {
-    public int Id { get; private set; }
-    public string Nome { get; private set; } = null!;
-    public string Email { get; private set; } = null!;
-    public string SenhaHash { get; private set; } = null!;
-    public PerfilUsuario Perfil { get; private set; }
-    public bool Ativo { get; private set; }
-    public DateTime DataCadastro { get; private set; }
+    public int Id { get; set; }
+    public string Nome { get; set; } = null!;
+    public string Email { get; set; } = null!;
+    public string SenhaHash { get; set; } = null!;
+    public PerfilUsuario Perfil { get; set; }
+    public bool Ativo { get; set; }
+    public DateTime DataCadastro { get; set; }
 
     protected Usuario() { }
 

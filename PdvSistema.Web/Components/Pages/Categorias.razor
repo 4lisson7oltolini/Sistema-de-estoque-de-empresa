@@ -1,0 +1,104 @@
+@page "/categorias"
+@inject EstoqueApiClient Api
+@inject IJSRuntime JavaScript
+
+<PageTitle>Categorias | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">CATÁLOGO / ORGANIZAÇÃO</p><h1>Categorias</h1><p class="heading-copy">Agrupe os produtos para facilitar o controle do catálogo.</p></div>
+    <button class="button button-primary" @onclick="AbrirNova"><span class="button-plus" aria-hidden="true">+</span> Nova categoria</button>
+</section>
+
+@if (_mensagem is not null)
+{
+    <div class="notice @(_erro ? "notice-error" : "notice-success")" role="status"><span>@_mensagem</span><button class="notice-close" @onclick="() => _mensagem = null" aria-label="Fechar aviso">×</button></div>
+}
+
+<section class="table-panel category-management">
+    <div class="table-toolbar"><div class="table-title"><h2>Grupos de produtos</h2><span class="count-badge">@_categorias.Count</span></div><span class="toolbar-note">Categorias com produtos vinculados não podem ser excluídas.</span></div>
+    @if (_carregando)
+    {
+        <div class="table-loading"><span class="loading-spinner"></span> Carregando categorias...</div>
+    }
+    else if (_categorias.Count == 0)
+    {
+        <div class="empty-state table-empty"><span class="empty-mark">≡</span><strong>Nenhuma categoria cadastrada</strong><p>Crie uma categoria para começar a organizar seus produtos.</p><button class="button button-secondary" @onclick="AbrirNova">Criar categoria</button></div>
+    }
+    else
+    {
+        <div class="table-scroll"><table class="data-table category-table">
+            <thead><tr><th>CATEGORIA</th><th>PRODUTOS VINCULADOS</th><th><span class="sr-only">Ações</span></th></tr></thead>
+            <tbody>
+                @foreach (var categoria in _categorias.OrderBy(item => item.Nome))
+                {
+                    var quantidade = _produtos.Count(produto => produto.CategoriaId == categoria.Id);
+                    <tr @key="categoria.Id"><td><div class="category-name-cell"><span class="category-avatar">@Inicial(categoria.Nome)</span><strong>@categoria.Nome</strong></div></td><td><span class="muted-cell">@quantidade @(quantidade == 1 ? "produto" : "produtos")</span></td><td><div class="row-actions"><button class="icon-button" @onclick="() => AbrirEdicao(categoria)" title="Editar categoria" aria-label="Editar @categoria.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg></button><button class="icon-button icon-button-danger" @onclick="() => RemoverAsync(categoria)" title="Excluir categoria" aria-label="Excluir @categoria.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button></div></td></tr>
+                }
+            </tbody>
+        </table></div>
+    }
+</section>
+
+@if (_mostrarFormulario)
+{
+    <div class="modal-backdrop" @onclick="FecharFormulario"><section class="modal-dialog modal-dialog-small" role="dialog" aria-modal="true" aria-labelledby="category-modal-title" @onclick:stopPropagation="true">
+        <div class="modal-header"><div><p class="eyebrow">CATÁLOGO</p><h2 id="category-modal-title">@(_categoriaId == 0 ? "Nova categoria" : "Editar categoria")</h2></div><button class="icon-button modal-close" @onclick="FecharFormulario" aria-label="Fechar">×</button></div>
+        <EditForm Model="_form" OnValidSubmit="SalvarAsync"><DataAnnotationsValidator /><label class="field"><span>Nome da categoria</span><InputText @bind-Value="_form.Nome" placeholder="Ex.: Mercearia" /></label><ValidationMessage For="() => _form.Nome" /><div class="modal-actions"><button type="button" class="button button-quiet" @onclick="FecharFormulario">Cancelar</button><button type="submit" class="button button-primary" disabled="@_salvando">@(_salvando ? "Salvando..." : "Salvar categoria")</button></div></EditForm>
+    </section></div>
+}
+
+@code {
+    private List<CategoriaDto> _categorias = [];
+    private List<ProdutoDto> _produtos = [];
+    private CategoriaFormModel _form = new();
+    private int _categoriaId;
+    private bool _carregando = true;
+    private bool _mostrarFormulario;
+    private bool _salvando;
+    private bool _erro;
+    private string? _mensagem;
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        try
+        {
+            var categoriasTask = Api.ListarCategoriasAsync();
+            var produtosTask = Api.ListarProdutosAsync();
+            await Task.WhenAll(categoriasTask, produtosTask);
+            _categorias = await categoriasTask;
+            _produtos = await produtosTask;
+        }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _carregando = false; }
+    }
+
+    private void AbrirNova() { _categoriaId = 0; _form = new CategoriaFormModel(); _mensagem = null; _mostrarFormulario = true; }
+    private void AbrirEdicao(CategoriaDto categoria) { _categoriaId = categoria.Id; _form = new CategoriaFormModel { Nome = categoria.Nome }; _mensagem = null; _mostrarFormulario = true; }
+    private async Task SalvarAsync()
+    {
+        _salvando = true;
+        try
+        {
+            if (_categoriaId == 0) { await Api.CriarCategoriaAsync(_form); MostrarSucesso("Categoria cadastrada."); }
+            else { await Api.AtualizarCategoriaAsync(_categoriaId, _form); MostrarSucesso("Categoria atualizada."); }
+            _mostrarFormulario = false;
+            await CarregarAsync();
+        }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _salvando = false; }
+    }
+
+    private async Task RemoverAsync(CategoriaDto categoria)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Excluir a categoria {categoria.Nome}?")) return;
+        try { await Api.RemoverCategoriaAsync(categoria.Id); MostrarSucesso("Categoria excluída."); await CarregarAsync(); }
+        catch (Exception exception) { MostrarErro(exception); }
+    }
+
+    private void FecharFormulario() => _mostrarFormulario = false;
+    private void MostrarSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
+    private void MostrarErro(Exception exception) { _mensagem = exception.Message; _erro = true; }
+    private static string Inicial(string nome) => string.IsNullOrWhiteSpace(nome) ? "?" : nome[..1].ToUpperInvariant();
+}

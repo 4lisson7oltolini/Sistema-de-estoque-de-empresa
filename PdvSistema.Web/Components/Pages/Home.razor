@@ -1,0 +1,117 @@
+﻿@page "/"
+
+@inject EstoqueApiClient Api
+
+<PageTitle>Painel | Ponto</PageTitle>
+
+<section class="page-heading">
+	<div>
+		<p class="eyebrow">OPERAÇÃO / VISÃO GERAL</p>
+		<h1>Visão geral</h1>
+		<p class="heading-copy">Acompanhe os indicadores e mantenha o estoque em dia.</p>
+	</div>
+	<a class="button button-primary" href="/produtos"><span class="button-plus" aria-hidden="true">+</span> Novo produto</a>
+</section>
+
+@if (_carregando)
+{
+	<div class="loading-line"><span></span> Carregando dados da operação...</div>
+}
+else if (_erro is not null)
+{
+	<div class="notice notice-error" role="alert"><strong>Não foi possível carregar o painel.</strong><span>@_erro</span><button class="text-button" @onclick="CarregarAsync">Tentar novamente</button></div>
+}
+else
+{
+	<section class="metric-grid" aria-label="Indicadores do estoque">
+		<article class="metric-card metric-products"><div class="metric-top"><span>Produtos cadastrados</span><span class="metric-symbol">01</span></div><strong>@_produtos.Count.ToString("D2")</strong><span class="metric-foot">itens no catálogo</span></article>
+		<article class="metric-card metric-categories"><div class="metric-top"><span>Categorias</span><span class="metric-symbol">02</span></div><strong>@_categorias.Count.ToString("D2")</strong><span class="metric-foot">grupos organizados</span></article>
+		<article class="metric-card metric-alerts"><div class="metric-top"><span>Estoque baixo</span><span class="metric-symbol">03</span></div><strong>@ProdutosBaixos.Count.ToString("D2")</strong><span class="metric-foot">no limite ou abaixo do mínimo</span></article>
+		<article class="metric-card metric-value"><div class="metric-top"><span>Valor em estoque</span><span class="metric-symbol">04</span></div><strong class="metric-money">@ValorEstoque.ToString("C0", _cultura)</strong><span class="metric-foot">estimativa pelo preço de venda</span></article>
+	</section>
+
+	<section class="dashboard-grid">
+		<article class="panel inventory-panel">
+			<div class="panel-heading"><div><p class="eyebrow">ACOMPANHAMENTO</p><h2>Reposição necessária</h2></div><a class="inline-link" href="/produtos">Ver produtos <span aria-hidden="true">↗</span></a></div>
+			@if (ProdutosBaixos.Count == 0)
+			{
+				<div class="empty-state compact-empty"><span class="empty-mark">✓</span><strong>Estoque em ordem</strong><p>Nenhum produto está abaixo do estoque mínimo.</p></div>
+			}
+			else
+			{
+				<div class="low-stock-list">
+					@foreach (var produto in ProdutosBaixos.Take(5))
+					{
+						<div class="low-stock-row" @key="produto.Id"><span class="product-initial">@Inicial(produto.Nome)</span><div class="low-stock-name"><strong>@produto.Nome</strong><small>@(produto.CategoriaNome ?? "Sem categoria")</small></div><div class="stock-amount"><strong>@produto.QuantidadeEstoque</strong><small>mín. @produto.EstoqueMinimo</small></div><span class="stock-alert">Repor</span></div>
+					}
+				</div>
+			}
+		</article>
+
+		<article class="panel category-panel">
+			<div class="panel-heading"><div><p class="eyebrow">CATÁLOGO</p><h2>Produtos por categoria</h2></div><a class="round-link" href="/categorias" aria-label="Gerenciar categorias" title="Gerenciar categorias">↗</a></div>
+			@if (_categorias.Count == 0)
+			{
+				<div class="empty-state category-empty"><strong>Comece por uma categoria</strong><p>Organize o catálogo antes de adicionar produtos.</p><a class="inline-link" href="/categorias">Cadastrar categoria <span aria-hidden="true">→</span></a></div>
+			}
+			else
+			{
+				<div class="category-bars">
+					@foreach (var categoria in _categorias.Take(6))
+					{
+						var quantidade = _produtos.Count(produto => produto.CategoriaId == categoria.Id);
+						<div class="category-bar-row" @key="categoria.Id"><div class="category-bar-label"><span>@categoria.Nome</span><strong>@quantidade</strong></div><div class="bar-track"><span style="width: @LarguraBarra(quantidade)%"></span></div></div>
+					}
+				</div>
+			}
+		</article>
+	</section>
+
+	<section class="quick-actions">
+		<div><span class="quick-kicker">ACESSO RÁPIDO</span><strong>O que você precisa fazer?</strong></div>
+		<a href="/produtos" class="quick-action"><span class="quick-action-icon">＋</span><span><strong>Adicionar produto</strong><small>Atualize seu catálogo</small></span><span class="quick-arrow">→</span></a>
+		<a href="/categorias" class="quick-action"><span class="quick-action-icon category-icon">≡</span><span><strong>Organizar categorias</strong><small>Estruture seus produtos</small></span><span class="quick-arrow">→</span></a>
+	</section>
+}
+
+@code {
+	private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+	private List<ProdutoDto> _produtos = [];
+	private List<CategoriaDto> _categorias = [];
+	private bool _carregando = true;
+	private string? _erro;
+	private List<ProdutoDto> ProdutosBaixos => _produtos.Where(produto => produto.QuantidadeEstoque <= produto.EstoqueMinimo).ToList();
+	private decimal ValorEstoque => _produtos.Sum(produto => produto.PrecoVenda * produto.QuantidadeEstoque);
+
+	protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+	private async Task CarregarAsync()
+	{
+		_carregando = true;
+		_erro = null;
+		try
+		{
+			var produtosTask = Api.ListarProdutosAsync();
+			var categoriasTask = Api.ListarCategoriasAsync();
+			await Task.WhenAll(produtosTask, categoriasTask);
+			_produtos = await produtosTask;
+			_categorias = await categoriasTask;
+		}
+		catch (Exception exception)
+		{
+			_erro = exception.Message;
+		}
+		finally
+		{
+			_carregando = false;
+		}
+	}
+
+	private int LarguraBarra(int quantidade)
+	{
+		var maior = Math.Max(1, _categorias.Max(categoria => _produtos.Count(produto => produto.CategoriaId == categoria.Id)));
+		return quantidade == 0 ? 4 : Math.Max(12, quantidade * 100 / maior);
+	}
+
+	private static string Inicial(string nome) => string.IsNullOrWhiteSpace(nome) ? "?" : nome[..1].ToUpperInvariant();
+}

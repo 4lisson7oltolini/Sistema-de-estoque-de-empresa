@@ -19,7 +19,7 @@ public class ProdutoRepository : IProdutoRepository
             .FirstOrDefaultAsync(p => p.Id == id);
 
     public async Task<List<Produto>> ObterTodosAsync() =>
-        await _context.Produtos.ToListAsync();
+        await _context.Produtos.Include(produto => produto.Categoria).ToListAsync();
 
     public async Task<List<Produto>> ObterPorCategoriaAsync(int categoriaId) =>
         await _context.Produtos.Where(p => EF.Property<int>(p, "CategoriaId") == categoriaId)

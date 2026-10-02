@@ -1,0 +1,28 @@
+﻿@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <aside class="sidebar">
+        <NavMenu />
+    </aside>
+
+    <main class="main-area">
+        <header class="topbar">
+            <div class="topbar-context">
+                <span class="topbar-kicker">OPERAÇÃO LOCAL</span>
+                <span class="topbar-title">Sistema de estoque</span>
+            </div>
+            <div class="connection-state"><span></span> API local · :5177</div>
+            <div class="operator-mark" title="Sessão local">OP</div>
+        </header>
+
+        <div class="page-content">
+            @Body
+        </div>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocorreu um erro inesperado.
+    <a href="." class="reload">Recarregar</a>
+    <span class="dismiss">×</span>
+</div>

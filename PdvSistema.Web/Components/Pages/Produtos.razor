@@ -1,0 +1,155 @@
+@page "/produtos"
+@inject EstoqueApiClient Api
+@inject IJSRuntime JavaScript
+
+<PageTitle>Produtos | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">CATÁLOGO / INVENTÁRIO</p><h1>Produtos</h1><p class="heading-copy">Gerencie preços, categorias e níveis mínimos do seu estoque.</p></div>
+    <button class="button button-primary" @onclick="AbrirNovo"><span class="button-plus" aria-hidden="true">+</span> Novo produto</button>
+</section>
+
+@if (_mensagem is not null)
+{
+    <div class="notice @(_erro ? "notice-error" : "notice-success")" role="status"><span>@_mensagem</span><button class="notice-close" @onclick="LimparMensagem" aria-label="Fechar aviso">×</button></div>
+}
+
+<section class="table-panel">
+    <div class="table-toolbar">
+        <div class="table-title"><h2>Todos os produtos</h2><span class="count-badge">@ProdutosFiltrados.Count()</span></div>
+        <div class="table-controls">
+            <label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg><input @bind="_busca" @bind:event="oninput" placeholder="Buscar produto..." aria-label="Buscar produto" /><kbd>/</kbd></label>
+            <select class="filter-select" @bind="_categoriaFiltro" aria-label="Filtrar por categoria"><option value="0">Todas as categorias</option>@foreach (var categoria in _categorias){<option value="@categoria.Id">@categoria.Nome</option>}</select>
+        </div>
+    </div>
+
+    @if (_carregando)
+    {
+        <div class="table-loading"><span class="loading-spinner"></span> Buscando produtos...</div>
+    }
+    else if (_produtos.Count == 0)
+    {
+        <div class="empty-state table-empty"><span class="empty-mark">＋</span><strong>Seu catálogo começa aqui</strong><p>Cadastre o primeiro produto para acompanhar preços e níveis de estoque.</p>@if (_categorias.Count == 0){<a class="button button-secondary" href="/categorias">Criar uma categoria primeiro</a>}else{<button class="button button-secondary" @onclick="AbrirNovo">Cadastrar primeiro produto</button>}</div>
+    }
+    else if (!ProdutosFiltrados.Any())
+    {
+        <div class="empty-state table-empty"><strong>Nenhum resultado</strong><p>Altere a busca ou o filtro de categoria.</p></div>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead><tr><th>PRODUTO</th><th>CATEGORIA</th><th>PREÇO DE VENDA</th><th>ESTOQUE</th><th>ESTOQUE MÍNIMO</th><th><span class="sr-only">Ações</span></th></tr></thead>
+                <tbody>
+                    @foreach (var produto in ProdutosFiltrados)
+                    {
+                        <tr @key="produto.Id">
+                            <td><div class="product-cell"><span class="product-avatar">@Inicial(produto.Nome)</span><span><strong>@produto.Nome</strong><small>@(string.IsNullOrWhiteSpace(produto.CodigoBarras) ? $"Código #{produto.Id:D4}" : produto.CodigoBarras)</small></span></div></td>
+                            <td><span class="category-tag">@(produto.CategoriaNome ?? "Sem categoria")</span></td>
+                            <td class="price-cell">@produto.PrecoVenda.ToString("C2", _cultura)</td>
+                            <td><span class="stock-pill @(produto.QuantidadeEstoque <= produto.EstoqueMinimo ? "stock-pill-low" : "")"><span></span>@produto.QuantidadeEstoque un.</span></td>
+                            <td class="muted-cell">@produto.EstoqueMinimo un.</td>
+                            <td><div class="row-actions"><button class="icon-button" @onclick="() => AbrirEdicao(produto)" title="Editar produto" aria-label="Editar @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg></button><button class="icon-button icon-button-danger" @onclick="() => RemoverAsync(produto)" title="Excluir produto" aria-label="Excluir @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button></div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="table-footer"><span>Exibindo <strong>@ProdutosFiltrados.Count()</strong> de <strong>@_produtos.Count</strong> produtos</span><span>Dados sincronizados com a API local</span></div>
+    }
+</section>
+
+@if (_mostrarFormulario)
+{
+    <div class="modal-backdrop" @onclick="FecharFormulario">
+        <section class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="product-modal-title" @onclick:stopPropagation="true">
+            <div class="modal-header"><div><p class="eyebrow">CATÁLOGO</p><h2 id="product-modal-title">@(_form.Id == 0 ? "Novo produto" : "Editar produto")</h2></div><button class="icon-button modal-close" @onclick="FecharFormulario" aria-label="Fechar">×</button></div>
+            @if (_categorias.Count == 0)
+            {
+                <div class="notice notice-error"><span>Cadastre uma categoria antes de criar produtos.</span><a class="inline-link" href="/categorias">Ir para categorias →</a></div>
+            }
+            else
+            {
+                <EditForm Model="_form" OnValidSubmit="SalvarAsync">
+                    <DataAnnotationsValidator />
+                    <div class="form-grid">
+                        <label class="field field-wide"><span>Nome do produto</span><InputText @bind-Value="_form.Nome" placeholder="Ex.: Café em grãos 500 g" /></label><ValidationMessage For="() => _form.Nome" />
+                        <label class="field field-wide"><span>Código de barras <small>OPCIONAL</small></span><InputText @bind-Value="_form.CodigoBarras" placeholder="EAN ou código interno" /></label>
+                        <label class="field"><span>Categoria</span><InputSelect @bind-Value="_form.CategoriaId"><option value="0">Selecione...</option>@foreach (var categoria in _categorias){<option value="@categoria.Id">@categoria.Nome</option>}</InputSelect></label><ValidationMessage For="() => _form.CategoriaId" />
+                        <label class="field"><span>Estoque mínimo</span><InputNumber @bind-Value="_form.EstoqueMinimo" min="0" /></label>
+                        <label class="field"><span>Preço de custo</span><InputNumber @bind-Value="_form.PrecoCusto" min="0" step="0.01" /></label><ValidationMessage For="() => _form.PrecoCusto" />
+                        <label class="field"><span>Preço de venda</span><InputNumber @bind-Value="_form.PrecoVenda" min="0" step="0.01" /></label><ValidationMessage For="() => _form.PrecoVenda" />
+                    </div>
+                    <div class="modal-actions"><button type="button" class="button button-quiet" @onclick="FecharFormulario">Cancelar</button><button type="submit" class="button button-primary" disabled="@_salvando">@(_salvando ? "Salvando..." : "Salvar produto")</button></div>
+                </EditForm>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private List<ProdutoDto> _produtos = [];
+    private List<CategoriaDto> _categorias = [];
+    private ProdutoFormModel _form = new();
+    private string _busca = string.Empty;
+    private int _categoriaFiltro;
+    private bool _carregando = true;
+    private bool _mostrarFormulario;
+    private bool _salvando;
+    private bool _erro;
+    private string? _mensagem;
+    private IEnumerable<ProdutoDto> ProdutosFiltrados => _produtos.Where(produto => produto.Nome.Contains(_busca, StringComparison.OrdinalIgnoreCase) || (produto.CodigoBarras?.Contains(_busca, StringComparison.OrdinalIgnoreCase) ?? false)).Where(produto => _categoriaFiltro == 0 || produto.CategoriaId == _categoriaFiltro).OrderBy(produto => produto.Nome);
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        try
+        {
+            var produtosTask = Api.ListarProdutosAsync();
+            var categoriasTask = Api.ListarCategoriasAsync();
+            await Task.WhenAll(produtosTask, categoriasTask);
+            _produtos = await produtosTask;
+            _categorias = await categoriasTask;
+        }
+        catch (Exception exception) { ExibirErro(exception); }
+        finally { _carregando = false; }
+    }
+
+    private void AbrirNovo() { _form = new ProdutoFormModel(); _mensagem = null; _mostrarFormulario = true; }
+    private void AbrirEdicao(ProdutoDto produto)
+    {
+        _form = new ProdutoFormModel { Id = produto.Id, Nome = produto.Nome, CodigoBarras = produto.CodigoBarras, PrecoCusto = produto.PrecoCusto, PrecoVenda = produto.PrecoVenda, EstoqueMinimo = produto.EstoqueMinimo, CategoriaId = produto.CategoriaId };
+        _mensagem = null;
+        _mostrarFormulario = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        _salvando = true;
+        try
+        {
+            if (_form.Id == 0) { await Api.CriarProdutoAsync(_form); DefinirSucesso("Produto cadastrado."); }
+            else { await Api.AtualizarProdutoAsync(_form); DefinirSucesso("Produto atualizado."); }
+            _mostrarFormulario = false;
+            await CarregarAsync();
+        }
+        catch (Exception exception) { ExibirErro(exception); }
+        finally { _salvando = false; }
+    }
+
+    private async Task RemoverAsync(ProdutoDto produto)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Excluir o produto {produto.Nome}?")) return;
+        try { await Api.RemoverProdutoAsync(produto.Id); DefinirSucesso("Produto excluído."); await CarregarAsync(); }
+        catch (Exception exception) { ExibirErro(exception); }
+    }
+
+    private void FecharFormulario() => _mostrarFormulario = false;
+    private void LimparMensagem() => _mensagem = null;
+    private void DefinirSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
+    private void ExibirErro(Exception exception) { _mensagem = exception.Message; _erro = true; }
+    private static string Inicial(string nome) => string.IsNullOrWhiteSpace(nome) ? "?" : nome[..1].ToUpperInvariant();
+}

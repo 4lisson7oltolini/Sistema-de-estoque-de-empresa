@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using PdvSistema.Domain.Entities;
-using PdvSistema.Domain.Interfaces;
+using PdvSistema.Application.DTOs.Produto;
+using PdvSistema.Application.Interfaces;
 
 namespace PdvSistema.API.Controllers;
 
@@ -8,29 +8,24 @@ namespace PdvSistema.API.Controllers;
 [Route("api/[controller]")]
 public class ProdutoController : ControllerBase
 {
-    private readonly IProdutoRepository _repository;
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IProdutoService _produtoService;
 
-    public ProdutoController(
-        IProdutoRepository repository,
-        IUnitOfWork unitOfWork)
+    public ProdutoController(IProdutoService produtoService)
     {
-        _repository = repository;
-        _unitOfWork = unitOfWork;
+        _produtoService = produtoService;
     }
 
     [HttpGet]
     public async Task<IActionResult> Listar()
     {
-        var produtos = await _repository.ObterTodosAsync();
-
+        var produtos = await _produtoService.ListarAsync();
         return Ok(produtos);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> ObterPorId(int id)
     {
-        var produto = await _repository.ObterPorIdAsync(id);
+        var produto = await _produtoService.ObterPorIdAsync(id);
 
         if (produto is null)
         {
@@ -41,59 +36,39 @@ public class ProdutoController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Criar(Produto produto)
+    public async Task<IActionResult> Criar(CriarProdutoRequest request)
     {
-        await _repository.AdicionarAsync(produto);
-
-        await _unitOfWork.SaveChangesAsync();
-
-        return CreatedAtAction(
-            nameof(ObterPorId),
-            new { id = produto.Id },
-            produto
-        );
+        try
+        {
+            var produto = await _produtoService.CriarAsync(request);
+            return CreatedAtAction(nameof(ObterPorId), new { id = produto.Id }, produto);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Atualizar(
         int id,
-        Produto produto)
+        AtualizarProdutoRequest request)
     {
-        if (id != produto.Id)
+        try
         {
-            return BadRequest();
+            var atualizado = await _produtoService.AtualizarAsync(id, request);
+            return atualizado ? NoContent() : NotFound();
         }
-
-        var produtoExistente =
-            await _repository.ObterPorIdAsync(id);
-
-        if (produtoExistente is null)
+        catch (ArgumentException exception)
         {
-            return NotFound();
+            return BadRequest(new { message = exception.Message });
         }
-
-        _repository.Atualizar(produto);
-
-        await _unitOfWork.SaveChangesAsync();
-
-        return NoContent();
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Remover(int id)
     {
-        var produto =
-            await _repository.ObterPorIdAsync(id);
-
-        if (produto is null)
-        {
-            return NotFound();
-        }
-
-        _repository.Remover(produto);
-
-        await _unitOfWork.SaveChangesAsync();
-
-        return NoContent();
+        var removido = await _produtoService.RemoverAsync(id);
+        return removido ? NoContent() : NotFound();
     }
 }
