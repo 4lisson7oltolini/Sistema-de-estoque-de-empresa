@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
-using System.Text;
+using Microsoft.AspNetCore.Identity;
+using System.Net.Mail;
 using PdvSistema.Application.DTOs.Usuario;
 using PdvSistema.Application.Interfaces;
 using PdvSistema.Domain.Entities;
@@ -12,11 +12,16 @@ public class UsuarioService : IUsuarioService
 {
     private readonly IUsuarioRepository _repository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IPasswordHasher<Usuario> _passwordHasher;
 
-    public UsuarioService(IUsuarioRepository repository, IUnitOfWork unitOfWork)
+    public UsuarioService(
+        IUsuarioRepository repository,
+        IUnitOfWork unitOfWork,
+        IPasswordHasher<Usuario> passwordHasher)
     {
         _repository = repository;
         _unitOfWork = unitOfWork;
+        _passwordHasher = passwordHasher;
     }
 
     public async Task<List<UsuarioResponse>> ListarAsync() =>
@@ -37,13 +42,14 @@ public class UsuarioService : IUsuarioService
         if (await _repository.ObterPorEmailAsync(email) is not null)
             throw new InvalidOperationException("Já existe um usuário com este e-mail.");
 
-        var usuario = new Usuario(nome, email, HashSenha(senha), request.Perfil);
+        var usuario = new Usuario(nome, email, string.Empty, request.Perfil);
+        usuario.SenhaHash = _passwordHasher.HashPassword(usuario, senha);
         await _repository.AdicionarAsync(usuario);
         await _unitOfWork.SaveChangesAsync();
         return Mapear(usuario);
     }
 
-    public async Task<bool> AtualizarAsync(int id, CriarUsuarioRequest request)
+    public async Task<bool> AtualizarAsync(int id, AtualizarUsuarioRequest request)
     {
         var usuario = await _repository.ObterPorIdAsync(id);
         if (usuario is null)
@@ -52,7 +58,13 @@ public class UsuarioService : IUsuarioService
         var nome = ValidarNome(request.Nome);
         var email = ValidarEmail(request.Email);
 
-        usuario.Ativar();
+        var usuarioExistente = await _repository.ObterPorEmailAsync(email);
+        if (usuarioExistente is not null && usuarioExistente.Id != id)
+            throw new InvalidOperationException("Já existe um usuário com este e-mail.");
+
+        usuario.Nome = nome;
+        usuario.Email = email;
+        usuario.Perfil = request.Perfil;
         _repository.Atualizar(usuario);
         await _unitOfWork.SaveChangesAsync();
         return true;
@@ -82,26 +94,19 @@ public class UsuarioService : IUsuarioService
     private static string ValidarEmail(string email)
     {
         var valor = email?.Trim();
-        if (string.IsNullOrWhiteSpace(valor))
-            throw new ArgumentException("O e-mail do usuário é obrigatório.");
+        if (string.IsNullOrWhiteSpace(valor) || !MailAddress.TryCreate(valor, out _))
+            throw new ArgumentException("Informe um e-mail válido.");
 
-        return valor;
+        return valor.ToLowerInvariant();
     }
 
     private static string ValidarSenha(string senha)
     {
-        var valor = senha?.Trim();
-        if (string.IsNullOrWhiteSpace(valor) || valor.Length < 6)
-            throw new ArgumentException("A senha deve conter pelo menos 6 caracteres.");
+        var valor = senha;
+        if (string.IsNullOrWhiteSpace(valor) || valor.Length < 12 || valor.Length > 128)
+            throw new ArgumentException("A senha deve conter entre 12 e 128 caracteres.");
 
         return valor;
-    }
-
-    private static string HashSenha(string senha)
-    {
-        using var sha256 = SHA256.Create();
-        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(senha));
-        return Convert.ToHexString(bytes);
     }
 
     private static UsuarioResponse Mapear(Usuario usuario) => new()
@@ -109,7 +114,6 @@ public class UsuarioService : IUsuarioService
         Id = usuario.Id,
         Nome = usuario.Nome,
         Email = usuario.Email,
-        SenhaHash = usuario.SenhaHash,
         Perfil = usuario.Perfil,
         Ativo = usuario.Ativo,
         DataCadastro = usuario.DataCadastro

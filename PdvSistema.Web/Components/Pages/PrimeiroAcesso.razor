@@ -1,0 +1,61 @@
+@page "/primeiro-acesso"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@inject EstoqueApiClient Api
+@inject NavigationManager Navigation
+
+<PageTitle>Primeiro acesso | Ponto</PageTitle>
+
+<section class="auth-form-wrap">
+    <p class="eyebrow">CONFIGURAÇÃO ÚNICA</p>
+    <h1>Crie a conta<br />administradora.</h1>
+    <p class="auth-copy">Esta etapa só funciona antes da criação do primeiro usuário.</p>
+
+    @if (_mensagem is not null)
+    {
+        <div class="notice @(_erro ? "notice-error" : "notice-success")" role="alert">@_mensagem</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="ConfigurarAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <label class="field"><span>Chave de configuração</span><InputText @bind-Value="_form.ChaveConfiguracao" type="password" autocomplete="off" /></label>
+        <ValidationMessage For="() => _form.ChaveConfiguracao" />
+        <label class="field auth-password-field"><span>Nome</span><InputText @bind-Value="_form.Nome" autocomplete="name" /></label>
+        <ValidationMessage For="() => _form.Nome" />
+        <label class="field auth-password-field"><span>E-mail</span><InputText @bind-Value="_form.Email" autocomplete="email" /></label>
+        <ValidationMessage For="() => _form.Email" />
+        <label class="field auth-password-field"><span>Senha <small>MÍNIMO 12 CARACTERES</small></span><InputText @bind-Value="_form.Senha" type="password" autocomplete="new-password" /></label>
+        <ValidationMessage For="() => _form.Senha" />
+        <button type="submit" class="button button-primary auth-submit" disabled="@_enviando">@(_enviando ? "Configurando..." : "Criar administrador")<span aria-hidden="true">→</span></button>
+    </EditForm>
+
+    <div class="auth-form-footer"><span>Já tem uma conta?</span><a href="/login">Voltar para entrar</a></div>
+</section>
+
+@code {
+    private BootstrapFormModel _form = new();
+    private bool _enviando;
+    private bool _erro;
+    private string? _mensagem;
+
+    private async Task ConfigurarAsync()
+    {
+        _enviando = true;
+        _mensagem = null;
+        try
+        {
+            await Api.ConfigurarAdministradorAsync(_form);
+            Navigation.NavigateTo("/login?primeiro-acesso=concluido");
+        }
+        catch (Exception exception)
+        {
+            _erro = true;
+            _mensagem = exception.Message;
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

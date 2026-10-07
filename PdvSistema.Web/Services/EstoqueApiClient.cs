@@ -1,54 +1,90 @@
-using System.Net;
 using System.Net.Http.Json;
 using PdvSistema.Web.Models;
 
 namespace PdvSistema.Web.Services;
 
-public sealed class EstoqueApiClient(HttpClient http)
+public sealed class EstoqueApiClient(HttpClient http, PdvAuthenticationStateProvider authState)
 {
     public async Task<List<ProdutoDto>> ListarProdutosAsync() =>
-        await http.GetFromJsonAsync<List<ProdutoDto>>("api/Produto") ?? [];
+        await ObterAsync<List<ProdutoDto>>("api/Produto") ?? [];
 
     public async Task<List<CategoriaDto>> ListarCategoriasAsync() =>
-        await http.GetFromJsonAsync<List<CategoriaDto>>("api/Categoria") ?? [];
+        await ObterAsync<List<CategoriaDto>>("api/Categoria") ?? [];
 
     public async Task CriarProdutoAsync(ProdutoFormModel model) =>
-        await EnviarAsync(() => http.PostAsJsonAsync("api/Produto", model));
+        await EnviarSemRespostaAsync(HttpMethod.Post, "api/Produto", model);
 
     public async Task AtualizarProdutoAsync(ProdutoFormModel model) =>
-        await EnviarAsync(() => http.PutAsJsonAsync($"api/Produto/{model.Id}", model));
+        await EnviarSemRespostaAsync(HttpMethod.Put, $"api/Produto/{model.Id}", model);
 
     public async Task RemoverProdutoAsync(int id) =>
-        await EnviarAsync(() => http.DeleteAsync($"api/Produto/{id}"));
+        await EnviarSemRespostaAsync(HttpMethod.Delete, $"api/Produto/{id}");
 
     public async Task CriarCategoriaAsync(CategoriaFormModel model) =>
-        await EnviarAsync(() => http.PostAsJsonAsync("api/Categoria", model));
+        await EnviarSemRespostaAsync(HttpMethod.Post, "api/Categoria", model);
 
     public async Task AtualizarCategoriaAsync(int id, CategoriaFormModel model) =>
-        await EnviarAsync(() => http.PutAsJsonAsync($"api/Categoria/{id}", model));
+        await EnviarSemRespostaAsync(HttpMethod.Put, $"api/Categoria/{id}", model);
 
     public async Task RemoverCategoriaAsync(int id) =>
-        await EnviarAsync(() => http.DeleteAsync($"api/Categoria/{id}"));
+        await EnviarSemRespostaAsync(HttpMethod.Delete, $"api/Categoria/{id}");
 
-    private static async Task EnviarAsync(Func<Task<HttpResponseMessage>> enviar)
+    public Task<LoginResultDto> LoginAsync(LoginFormModel model) =>
+        EnviarComRespostaAsync<LoginResultDto>(HttpMethod.Post, "api/Auth/login", model);
+
+    public Task ConfigurarAdministradorAsync(BootstrapFormModel model) =>
+        EnviarSemRespostaAsync(HttpMethod.Post, "api/Auth/bootstrap", model);
+
+    private async Task<T?> ObterAsync<T>(string caminho)
     {
-        using var response = await enviar();
+        using var response = await EnviarAsync(HttpMethod.Get, caminho);
+        return await response.Content.ReadFromJsonAsync<T>();
+    }
+
+    private async Task EnviarSemRespostaAsync(HttpMethod metodo, string caminho, object? corpo = null)
+    {
+        using var response = await EnviarAsync(metodo, caminho, corpo);
+    }
+
+    private async Task<T> EnviarComRespostaAsync<T>(HttpMethod metodo, string caminho, object corpo)
+    {
+        using var response = await EnviarAsync(metodo, caminho, corpo);
+        return await response.Content.ReadFromJsonAsync<T>()
+            ?? throw new InvalidOperationException("A API retornou uma resposta vazia.");
+    }
+
+    private async Task<HttpResponseMessage> EnviarAsync(HttpMethod metodo, string caminho, object? corpo = null)
+    {
+        using var request = new HttpRequestMessage(metodo, caminho);
+        if (corpo is not null)
+            request.Content = JsonContent.Create(corpo);
+
+        var token = await authState.ObterTokenAsync();
+        if (!string.IsNullOrWhiteSpace(token))
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        var response = await http.SendAsync(request);
         if (response.IsSuccessStatusCode)
-            return;
+            return response;
 
         var erro = await response.Content.ReadFromJsonAsync<ApiError>();
-        var mensagem = erro?.Message ?? response.StatusCode switch
-        {
-            HttpStatusCode.Conflict => "Este registro está vinculado a outros dados e não pode ser removido.",
-            HttpStatusCode.NotFound => "O registro solicitado não foi encontrado.",
-            _ => $"A API retornou o erro {(int)response.StatusCode}."
-        };
-
-        throw new HttpRequestException(mensagem, null, response.StatusCode);
+        var mensagem = erro?.ObterMensagem() ?? $"A API retornou o erro {(int)response.StatusCode}.";
+        var statusCode = response.StatusCode;
+        response.Dispose();
+        throw new HttpRequestException(mensagem, null, statusCode);
     }
 
     private sealed class ApiError
     {
+        public string? Title { get; set; }
+        public string? Detail { get; set; }
         public string? Message { get; set; }
+        public Dictionary<string, string[]>? Errors { get; set; }
+
+        public string? ObterMensagem() =>
+            Errors?.Values.SelectMany(mensagens => mensagens).FirstOrDefault()
+            ?? Message
+            ?? Detail
+            ?? Title;
     }
 }

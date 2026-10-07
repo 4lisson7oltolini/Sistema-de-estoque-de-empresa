@@ -1,0 +1,64 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@inject EstoqueApiClient Api
+@inject PdvAuthenticationStateProvider AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Entrar | Ponto</PageTitle>
+
+<section class="auth-form-wrap">
+    <p class="eyebrow">ACESSO AO SISTEMA</p>
+    <h1>Bom ter você<br />de volta.</h1>
+    <p class="auth-copy">Entre com suas credenciais para continuar.</p>
+
+    @if (SetupDone == "concluido")
+    {
+        <div class="notice notice-success" role="status">Administrador configurado. Entre com seu e-mail e senha.</div>
+    }
+    @if (_erro is not null)
+    {
+        <div class="notice notice-error" role="alert">@_erro</div>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="EntrarAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <label class="field"><span>E-mail</span><InputText @bind-Value="_form.Email" autocomplete="username" placeholder="nome@empresa.com" /></label>
+        <ValidationMessage For="() => _form.Email" />
+        <label class="field auth-password-field"><span>Senha</span><InputText @bind-Value="_form.Senha" type="password" autocomplete="current-password" placeholder="Sua senha" /></label>
+        <ValidationMessage For="() => _form.Senha" />
+        <button type="submit" class="button button-primary auth-submit" disabled="@_enviando">@(_enviando ? "Verificando..." : "Entrar")<span aria-hidden="true">→</span></button>
+    </EditForm>
+
+    <div class="auth-form-footer"><span>Primeiro acesso ao sistema?</span><a href="/primeiro-acesso">Configurar administrador</a></div>
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "primeiro-acesso")]
+    public string? SetupDone { get; set; }
+
+    private LoginFormModel _form = new();
+    private bool _enviando;
+    private string? _erro;
+
+    private async Task EntrarAsync()
+    {
+        _enviando = true;
+        _erro = null;
+        try
+        {
+            var resposta = await Api.LoginAsync(_form);
+            await AuthState.IniciarSessaoAsync(resposta);
+            Navigation.NavigateTo("/");
+        }
+        catch (Exception)
+        {
+            _erro = "Não foi possível entrar. Confira suas credenciais e tente novamente.";
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+}

@@ -8,11 +8,17 @@
     <main class="main-area">
         <header class="topbar">
             <div class="topbar-context">
-                <span class="topbar-kicker">OPERAÇÃO LOCAL</span>
+                <span class="topbar-kicker">PAINEL OPERACIONAL</span>
                 <span class="topbar-title">Sistema de estoque</span>
             </div>
-            <div class="connection-state"><span></span> API local · :5177</div>
-            <div class="operator-mark" title="Sessão local">OP</div>
+            <AuthorizeView>
+                <Authorized>
+                    <div class="operator-mark" title="Conta autenticada">OK</div>
+                </Authorized>
+                <NotAuthorized>
+                    <a class="button button-quiet" href="/login">Entrar</a>
+                </NotAuthorized>
+            </AuthorizeView>
         </header>
 
         <div class="page-content">

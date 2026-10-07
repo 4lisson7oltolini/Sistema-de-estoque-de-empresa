@@ -29,6 +29,7 @@ Sistema de gerenciamento de estoque e vendas desenvolvido em C#/.NET.
 - API de vendas com cálculo de total, itemização e cancelamento com devolução de estoque.
 - API de clientes e usuários.
 - Interface visual responsiva para indicadores, produtos e categorias.
+- Login com token curto, autorização por perfil e configuração inicial de administrador.
 
 ## Como executar
 
@@ -52,6 +53,44 @@ dotnet run --project PdvSistema.Web/PdvSistema.Web.csproj
 ```
 
 A interface abre em `http://localhost:5209` e consome a API em `http://localhost:5177`. Mantenha os dois processos ativos durante o uso. O endereço da API pode ser ajustado em `PdvSistema.Web/appsettings.json` (`ApiBaseUrl`).
+
+### Primeiro login
+
+Antes de iniciar a API pela primeira vez, configure segredos locais. Não use uma chave fixa em produção:
+
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$jwtBytes = [byte[]]::new(64)
+$setupBytes = [byte[]]::new(48)
+$rng.GetBytes($jwtBytes)
+$rng.GetBytes($setupBytes)
+$jwtKey = [Convert]::ToBase64String($jwtBytes)
+$setupKey = [Convert]::ToBase64String($setupBytes)
+dotnet user-secrets set "Jwt:SigningKey" $jwtKey --project .\PdvSistema.API\PdvSistema.API.csproj
+dotnet user-secrets set "Bootstrap:SetupKey" $setupKey --project .\PdvSistema.API\PdvSistema.API.csproj
+$rng.Dispose()
+Remove-Variable jwtKey, setupKey, jwtBytes, setupBytes, rng
+```
+
+Abra `http://localhost:5209/primeiro-acesso`, informe a chave salva em `Bootstrap:SetupKey` e crie o administrador. Para copiá-la sem exibir os segredos no terminal, execute:
+
+```powershell
+$secrets = Get-Content "$env:APPDATA\Microsoft\UserSecrets\PdvSistema-API-Local-Secrets\secrets.json" -Raw | ConvertFrom-Json
+$secrets.'Bootstrap:SetupKey' | Set-Clipboard
+Remove-Variable secrets
+```
+
+Essa rota só funciona enquanto não houver nenhum usuário cadastrado; depois, entre em `http://localhost:5209/login`. Hashes SHA-256 de senhas antigas são atualizados para o formato adaptativo no próximo login bem-sucedido.
+
+Em produção, configure `Jwt__SigningKey` e `Bootstrap__SetupKey` no cofre de segredos do ambiente, publique somente sob HTTPS e remova/desative a chave de bootstrap após criar o administrador.
+
+### Proteções incluídas e limites
+
+- O acesso à API exige JWT por padrão; usuários só podem ser administrados por perfil Administrador.
+- Login e bootstrap são limitados a 5 tentativas por minuto/IP; a API também limita tráfego geral e concorrência, tamanho do corpo e tempo de headers.
+- O acesso a dados usa LINQ/EF Core parametrizado; não foram encontradas consultas SQL raw montadas por concatenação.
+- Senhas usam `PasswordHasher` e não são devolvidas pela API. O Blazor guarda a sessão em armazenamento protegido de sessão, não em `localStorage`.
+- Rate limit no processo não impede DDoS volumétrico distribuído. Para produção pública, use WAF/CDN, firewall, proxy confiável, monitoramento e limites no host/banco.
 
 O banco SQLite local é criado em `PdvSistema.API/pdvsistema.db` e não deve ser versionado. A interface atual cobre o painel, produtos e categorias; vendas, clientes, usuários e movimentações ainda não têm telas próprias.
 

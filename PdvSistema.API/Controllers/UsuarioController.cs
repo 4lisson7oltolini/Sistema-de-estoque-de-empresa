@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using PdvSistema.Application.DTOs.Usuario;
 using PdvSistema.Application.Interfaces;
 
 namespace PdvSistema.API.Controllers;
 
 [ApiController]
+[Authorize(Roles = "Administrador")]
 [Route("api/[controller]")]
 public class UsuarioController : ControllerBase
 {
@@ -42,7 +44,7 @@ public class UsuarioController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Atualizar(int id, CriarUsuarioRequest request)
+    public async Task<IActionResult> Atualizar(int id, AtualizarUsuarioRequest request)
     {
         try
         {
@@ -51,6 +53,10 @@ public class UsuarioController : ControllerBase
         catch (ArgumentException exception)
         {
             return BadRequest(new { message = exception.Message });
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new { message = exception.Message });
         }
     }
 

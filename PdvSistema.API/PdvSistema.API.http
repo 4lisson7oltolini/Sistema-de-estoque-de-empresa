@@ -1,4 +1,17 @@
 @PdvSistema.API_HostAddress = http://localhost:5177
 
+### Login (configure credenciais por /primeiro-acesso na interface)
+# @name login
+POST {{PdvSistema.API_HostAddress}}/api/Auth/login
+Accept: application/json
+Content-Type: application/json
+
+{
+	"email": "admin@empresa.com",
+	"senha": "substitua-pela-senha-configurada"
+}
+
+### Produtos autenticados
 GET {{PdvSistema.API_HostAddress}}/api/Produto
+Authorization: Bearer {{login.response.body.$.accessToken}}
 Accept: application/json

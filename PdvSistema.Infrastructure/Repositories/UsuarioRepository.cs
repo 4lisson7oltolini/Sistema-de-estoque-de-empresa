@@ -15,7 +15,7 @@ public class UsuarioRepository : IUsuarioRepository
         await _context.Usuarios.FindAsync(id);
 
     public async Task<Usuario?> ObterPorEmailAsync(string email) =>
-        await _context.Usuarios.FirstOrDefaultAsync(usuario => usuario.Email == email);
+        await _context.Usuarios.FirstOrDefaultAsync(usuario => usuario.Email.ToLower() == email.ToLower());
 
     public async Task<List<Usuario>> ObterTodosAsync() =>
         await _context.Usuarios.OrderBy(usuario => usuario.Nome).ToListAsync();

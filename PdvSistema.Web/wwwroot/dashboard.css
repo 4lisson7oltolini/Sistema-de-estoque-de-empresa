@@ -198,6 +198,32 @@ h1 { font-size: clamp(27px, 3vw, 34px); font-weight: 800; letter-spacing: 0; lin
 .not-found-page { margin: 80px auto; max-width: 480px; text-align: center; }
 .not-found-page h1 { margin-bottom: 18px; }
 .sr-only { clip: rect(0, 0, 0, 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
+.side-logout { background: transparent; border: 0; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
+.auth-shell { background: #f7f8f5; display: grid; grid-template-columns: minmax(300px, .82fr) minmax(440px, 1.18fr); min-height: 100vh; }
+.auth-aside { background: var(--forest); color: #f5f7f3; display: flex; flex-direction: column; justify-content: space-between; min-height: 100vh; overflow: hidden; padding: 34px clamp(28px, 5vw, 76px); position: relative; }
+.auth-brand { align-self: flex-start; padding: 0; position: relative; z-index: 1; }
+.auth-aside-bottom { margin: auto 0 8vh; position: relative; z-index: 1; }
+.auth-index { color: #a9b9b0; font-family: 'DM Mono', monospace; font-size: 10px; }
+.auth-aside-bottom > p { color: #f5f7f3; font-size: clamp(34px, 4vw, 54px); font-weight: 700; letter-spacing: 0; line-height: 1.13; margin: 24px 0 30px; }
+.auth-aside-bottom > p strong { color: var(--lime); font-weight: 800; }
+.auth-line { background: var(--lime); display: block; height: 2px; margin-bottom: 14px; width: 42px; }
+.auth-aside-note { color: #a9b9b0; font-family: 'DM Mono', monospace; font-size: 9px; }
+.auth-watermark { color: rgba(255, 255, 255, .035); font-size: min(48vw, 620px); font-weight: 800; line-height: .8; position: absolute; right: -8vw; top: 22vh; }
+.auth-main { align-items: center; display: flex; justify-content: center; padding: 54px 28px; }
+.auth-form-wrap { animation: rise-in .28s ease both; max-width: 390px; width: 100%; }
+.auth-form-wrap h1 { font-size: 34px; line-height: 1.18; margin: 0 0 10px; }
+.auth-copy { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0 0 27px; }
+.auth-form-wrap form { display: flex; flex-direction: column; }
+.auth-form-wrap .field { margin-bottom: 13px; }
+.auth-password-field { margin-top: 7px; }
+.auth-form-wrap .validation-message { margin: -8px 0 2px; }
+.auth-submit { justify-content: space-between; margin-top: 13px; min-height: 45px; padding: 0 15px; }
+.auth-submit > span { color: var(--lime); font-size: 17px; }
+.auth-form-footer { align-items: center; border-top: 1px solid var(--line); color: #838e86; display: flex; flex-wrap: wrap; font-size: 10px; gap: 5px 9px; justify-content: center; margin-top: 24px; padding-top: 17px; }
+.auth-form-footer a { color: var(--blue); font-weight: 700; }
+.auth-form-wrap .notice { align-items: flex-start; line-height: 1.55; }
+.auth-form-wrap .notice-success, .auth-form-wrap .notice-error { margin-bottom: 16px; }
+.auth-form-wrap .field input { height: 43px; }
 #blazor-error-ui { background: #fff1eb; bottom: 0; box-shadow: 0 -2px 8px rgba(0, 0, 0, .08); color: #874c3a; display: none; left: 0; padding: 12px 20px; position: fixed; right: 0; z-index: 200; }
 #blazor-error-ui .reload { color: var(--blue); font-weight: 700; margin-left: 10px; }
 #blazor-error-ui .dismiss { cursor: pointer; float: right; }
@@ -234,6 +260,12 @@ h1 { font-size: clamp(27px, 3vw, 34px); font-weight: 800; letter-spacing: 0; lin
     .filter-select { flex: 1; max-width: none; }
     .quick-actions { align-items: stretch; grid-template-columns: 1fr; }
     .quick-actions > div { margin-bottom: 2px; }
+    .auth-shell { grid-template-columns: 1fr; }
+    .auth-aside { min-height: auto; padding: 18px 22px; }
+    .auth-brand { padding: 0; }
+    .auth-aside-bottom { display: none; }
+    .auth-watermark { font-size: 235px; right: 15px; top: -42px; }
+    .auth-main { min-height: calc(100vh - 71px); padding: 38px 22px; }
 }
 @media (max-width: 480px) {
     .connection-state { font-size: 0; gap: 0; }
@@ -255,4 +287,5 @@ h1 { font-size: clamp(27px, 3vw, 34px); font-weight: 800; letter-spacing: 0; lin
     .form-grid { grid-template-columns: 1fr; }
     .field-wide { grid-column: auto; }
     .toolbar-note { line-height: 1.5; }
+    .auth-form-wrap h1 { font-size: 30px; }
 }

@@ -1,6 +1,26 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        @if (Attribute.IsDefined(routeData.PageType, typeof(AllowAnonymousAttribute)))
+        {
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        }
+        else
+        {
+            <AuthorizeView>
+                <Authorized>
+                    <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+                </Authorized>
+                <NotAuthorized Context="authState">
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    <section class="not-found-page">
+                        <p class="eyebrow">SESSÃO NECESSÁRIA</p>
+                        <h1>Entre para continuar.</h1>
+                        <a class="button button-primary" href="/login">Entrar</a>
+                    </section>
+                </LayoutView>
+                </NotAuthorized>
+            </AuthorizeView>
+        }
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

@@ -1,6 +1,7 @@
 using PdvSistema.Application.DTOs.Cliente;
 using PdvSistema.Application.DTOs.Usuario;
 using PdvSistema.Application.Services;
+using Microsoft.AspNetCore.Identity;
 using PdvSistema.Domain.Entities;
 using PdvSistema.Domain.Enums;
 using PdvSistema.Domain.Interfaces;
@@ -37,19 +38,21 @@ public class ClienteUsuarioServiceTests
     {
         var repository = new FakeUsuarioRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var service = new UsuarioService(repository, unitOfWork);
+        var passwordHasher = new PasswordHasher<Usuario>();
+        var service = new UsuarioService(repository, unitOfWork, passwordHasher);
 
         var response = await service.CriarAsync(new CriarUsuarioRequest
         {
             Nome = "Maria",
             Email = "maria@teste.com",
-            Senha = "123456",
+            Senha = "MinhaSenhaSegura@2026",
             Perfil = PerfilUsuario.Administrador
         });
 
         Assert.Equal("Maria", response.Nome);
         Assert.Equal("maria@teste.com", response.Email);
-        Assert.NotEqual("123456", response.SenhaHash);
+        Assert.DoesNotContain("SenhaHash", typeof(UsuarioResponse).GetProperties().Select(property => property.Name));
+        Assert.Equal(PasswordVerificationResult.Success, passwordHasher.VerifyHashedPassword(repository.Usuarios[0], repository.Usuarios[0].SenhaHash, "MinhaSenhaSegura@2026"));
         Assert.Equal(PerfilUsuario.Administrador, response.Perfil);
         Assert.Equal(1, unitOfWork.SaveCount);
         Assert.Single(repository.Usuarios);
