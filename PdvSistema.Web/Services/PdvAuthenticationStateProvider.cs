@@ -22,6 +22,13 @@ public sealed class PdvAuthenticationStateProvider(ProtectedSessionStorage stora
     public async Task<string?> ObterTokenAsync()
     {
         await CarregarSessaoAsync();
+
+        if (_session is not null && _session.ExpiresAt <= DateTimeOffset.UtcNow)
+        {
+            await EncerrarSessaoAsync();
+            return null;
+        }
+
         return _session?.AccessToken;
     }
 

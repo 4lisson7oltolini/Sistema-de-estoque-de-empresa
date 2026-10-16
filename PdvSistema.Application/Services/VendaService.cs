@@ -1,6 +1,7 @@
 using PdvSistema.Application.DTOs.Venda;
 using PdvSistema.Application.Interfaces;
 using PdvSistema.Domain.Entities;
+using PdvSistema.Domain.Enums;
 using PdvSistema.Domain.Interfaces;
 
 namespace PdvSistema.Application.Services;
@@ -9,15 +10,18 @@ public class VendaService : IVendaService
 {
     private readonly IProdutoRepository _produtoRepository;
     private readonly IVendaRepository _vendaRepository;
+    private readonly IMovimentacaoEstoqueRepository _movimentacaoRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public VendaService(
         IProdutoRepository produtoRepository,
         IVendaRepository vendaRepository,
+        IMovimentacaoEstoqueRepository movimentacaoRepository,
         IUnitOfWork unitOfWork)
     {
         _produtoRepository = produtoRepository;
         _vendaRepository = vendaRepository;
+        _movimentacaoRepository = movimentacaoRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -53,6 +57,7 @@ public class VendaService : IVendaService
             UsuarioId = request.UsuarioId,
             FormaPagamento = request.FormaPagamento.Trim()
         };
+        var movimentacoes = new List<MovimentacaoEstoque>();
 
         foreach (var item in request.Itens)
         {
@@ -64,11 +69,14 @@ public class VendaService : IVendaService
                 throw new InvalidOperationException($"Produto {item.ProdutoId} não encontrado.");
 
             venda.AdicionarItem(produto, item.Quantidade);
+            movimentacoes.Add(new MovimentacaoEstoque(produto, TipoMovimentacao.Saida, item.Quantidade, "Venda realizada"));
         }
 
         venda.Concluir();
 
         await _vendaRepository.AdicionarAsync(venda);
+        foreach (var movimentacao in movimentacoes)
+            await _movimentacaoRepository.AdicionarAsync(movimentacao);
         await _unitOfWork.SaveChangesAsync();
 
         return Mapear(venda);
@@ -84,7 +92,14 @@ public class VendaService : IVendaService
         {
             var produto = await _produtoRepository.ObterPorIdAsync(item.ProdutoId);
             if (produto is not null)
+            {
                 produto.AdicionarEstoque(item.Quantidade);
+                await _movimentacaoRepository.AdicionarAsync(new MovimentacaoEstoque(
+                    produto,
+                    TipoMovimentacao.Entrada,
+                    item.Quantidade,
+                    "Cancelamento de venda"));
+            }
         }
 
         venda.Cancelar();

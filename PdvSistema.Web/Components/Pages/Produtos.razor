@@ -49,7 +49,7 @@
                             <td class="price-cell">@produto.PrecoVenda.ToString("C2", _cultura)</td>
                             <td><span class="stock-pill @(produto.QuantidadeEstoque <= produto.EstoqueMinimo ? "stock-pill-low" : "")"><span></span>@produto.QuantidadeEstoque un.</span></td>
                             <td class="muted-cell">@produto.EstoqueMinimo un.</td>
-                            <td><div class="row-actions"><button class="icon-button" @onclick="() => AbrirEdicao(produto)" title="Editar produto" aria-label="Editar @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg></button><button class="icon-button icon-button-danger" @onclick="() => RemoverAsync(produto)" title="Excluir produto" aria-label="Excluir @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button></div></td>
+                            <td><div class="row-actions"><button class="icon-button" @onclick="() => AbrirMovimentacao(produto)" title="Movimentar estoque" aria-label="Movimentar estoque de @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></button><button class="icon-button" @onclick="() => AbrirEdicao(produto)" title="Editar produto" aria-label="Editar @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg></button><button class="icon-button icon-button-danger" @onclick="() => RemoverAsync(produto)" title="Excluir produto" aria-label="Excluir @produto.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button></div></td>
                         </tr>
                     }
                 </tbody>
@@ -77,6 +77,11 @@
                         <label class="field field-wide"><span>Código de barras <small>OPCIONAL</small></span><InputText @bind-Value="_form.CodigoBarras" placeholder="EAN ou código interno" /></label>
                         <label class="field"><span>Categoria</span><InputSelect @bind-Value="_form.CategoriaId"><option value="0">Selecione...</option>@foreach (var categoria in _categorias){<option value="@categoria.Id">@categoria.Nome</option>}</InputSelect></label><ValidationMessage For="() => _form.CategoriaId" />
                         <label class="field"><span>Estoque mínimo</span><InputNumber @bind-Value="_form.EstoqueMinimo" min="0" /></label>
+                        @if (_form.Id == 0)
+                        {
+                            <label class="field"><span>Saldo inicial <small>OPCIONAL</small></span><InputNumber @bind-Value="_form.EstoqueInicial" min="0" /></label>
+                            <ValidationMessage For="() => _form.EstoqueInicial" />
+                        }
                         <label class="field"><span>Preço de custo</span><InputNumber @bind-Value="_form.PrecoCusto" min="0" step="0.01" /></label><ValidationMessage For="() => _form.PrecoCusto" />
                         <label class="field"><span>Preço de venda</span><InputNumber @bind-Value="_form.PrecoVenda" min="0" step="0.01" /></label><ValidationMessage For="() => _form.PrecoVenda" />
                     </div>
@@ -87,16 +92,39 @@
     </div>
 }
 
+@if (_produtoMovimentacao is not null)
+{
+    <div class="modal-backdrop" @onclick="FecharMovimentacao">
+        <section class="modal-dialog modal-dialog-small" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title" @onclick:stopPropagation="true">
+            <div class="modal-header"><div><p class="eyebrow">INVENTÁRIO</p><h2 id="stock-modal-title">Movimentar estoque</h2></div><button class="icon-button modal-close" @onclick="FecharMovimentacao" aria-label="Fechar">×</button></div>
+            <p class="muted-cell"><strong>@_produtoMovimentacao.Nome</strong> · disponível: @_produtoMovimentacao.QuantidadeEstoque un.</p>
+            <EditForm Model="_movimentacaoForm" OnValidSubmit="RegistrarMovimentacaoAsync">
+                <DataAnnotationsValidator />
+                <label class="field"><span>Movimento</span><InputSelect @bind-Value="_movimentacaoForm.Tipo"><option value="1">Entrada</option><option value="2">Saída</option></InputSelect></label>
+                <ValidationMessage For="() => _movimentacaoForm.Tipo" />
+                <label class="field"><span>Quantidade</span><InputNumber @bind-Value="_movimentacaoForm.Quantidade" min="1" /></label>
+                <ValidationMessage For="() => _movimentacaoForm.Quantidade" />
+                <label class="field"><span>Observação <small>OPCIONAL</small></span><InputText @bind-Value="_movimentacaoForm.Observacao" maxlength="250" placeholder="Ex.: reposição do fornecedor" /></label>
+                <ValidationMessage For="() => _movimentacaoForm.Observacao" />
+                <div class="modal-actions"><button type="button" class="button button-quiet" @onclick="FecharMovimentacao">Cancelar</button><button type="submit" class="button button-primary" disabled="@_salvandoMovimentacao">@(_salvandoMovimentacao ? "Registrando..." : "Registrar movimentação")</button></div>
+            </EditForm>
+        </section>
+    </div>
+}
+
 @code {
     private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
     private List<ProdutoDto> _produtos = [];
     private List<CategoriaDto> _categorias = [];
     private ProdutoFormModel _form = new();
+    private MovimentacaoEstoqueFormModel _movimentacaoForm = new();
+    private ProdutoDto? _produtoMovimentacao;
     private string _busca = string.Empty;
     private int _categoriaFiltro;
     private bool _carregando = true;
     private bool _mostrarFormulario;
     private bool _salvando;
+    private bool _salvandoMovimentacao;
     private bool _erro;
     private string? _mensagem;
     private IEnumerable<ProdutoDto> ProdutosFiltrados => _produtos.Where(produto => produto.Nome.Contains(_busca, StringComparison.OrdinalIgnoreCase) || (produto.CodigoBarras?.Contains(_busca, StringComparison.OrdinalIgnoreCase) ?? false)).Where(produto => _categoriaFiltro == 0 || produto.CategoriaId == _categoriaFiltro).OrderBy(produto => produto.Nome);
@@ -119,6 +147,13 @@
     }
 
     private void AbrirNovo() { _form = new ProdutoFormModel(); _mensagem = null; _mostrarFormulario = true; }
+    private void AbrirMovimentacao(ProdutoDto produto)
+    {
+        _produtoMovimentacao = produto;
+        _movimentacaoForm = new MovimentacaoEstoqueFormModel { ProdutoId = produto.Id };
+        _mensagem = null;
+    }
+
     private void AbrirEdicao(ProdutoDto produto)
     {
         _form = new ProdutoFormModel { Id = produto.Id, Nome = produto.Nome, CodigoBarras = produto.CodigoBarras, PrecoCusto = produto.PrecoCusto, PrecoVenda = produto.PrecoVenda, EstoqueMinimo = produto.EstoqueMinimo, CategoriaId = produto.CategoriaId };
@@ -131,7 +166,32 @@
         _salvando = true;
         try
         {
-            if (_form.Id == 0) { await Api.CriarProdutoAsync(_form); DefinirSucesso("Produto cadastrado."); }
+            if (_form.Id == 0)
+            {
+                var produtoCriado = await Api.CriarProdutoAsync(_form);
+                if (_form.EstoqueInicial > 0)
+                {
+                    try
+                    {
+                        await Api.RegistrarMovimentacaoAsync(new MovimentacaoEstoqueFormModel
+                        {
+                            ProdutoId = produtoCriado.Id,
+                            Tipo = 1,
+                            Quantidade = _form.EstoqueInicial,
+                            Observacao = "Saldo inicial do produto"
+                        });
+                    }
+                    catch (Exception exception)
+                    {
+                        _mostrarFormulario = false;
+                        ExibirErro(new InvalidOperationException($"Produto criado, mas não foi possível registrar o saldo inicial: {exception.Message}"));
+                        await CarregarAsync();
+                        return;
+                    }
+                }
+
+                DefinirSucesso("Produto cadastrado.");
+            }
             else { await Api.AtualizarProdutoAsync(_form); DefinirSucesso("Produto atualizado."); }
             _mostrarFormulario = false;
             await CarregarAsync();
@@ -147,7 +207,22 @@
         catch (Exception exception) { ExibirErro(exception); }
     }
 
+    private async Task RegistrarMovimentacaoAsync()
+    {
+        _salvandoMovimentacao = true;
+        try
+        {
+            await Api.RegistrarMovimentacaoAsync(_movimentacaoForm);
+            DefinirSucesso(_movimentacaoForm.Tipo == 1 ? "Entrada registrada." : "Saída registrada.");
+            _produtoMovimentacao = null;
+            await CarregarAsync();
+        }
+        catch (Exception exception) { ExibirErro(exception); }
+        finally { _salvandoMovimentacao = false; }
+    }
+
     private void FecharFormulario() => _mostrarFormulario = false;
+    private void FecharMovimentacao() => _produtoMovimentacao = null;
     private void LimparMensagem() => _mensagem = null;
     private void DefinirSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
     private void ExibirErro(Exception exception) { _mensagem = exception.Message; _erro = true; }

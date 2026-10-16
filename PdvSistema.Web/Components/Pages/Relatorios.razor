@@ -1,0 +1,121 @@
+@page "/relatorios"
+@inject EstoqueApiClient Api
+
+<PageTitle>Relatórios | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">ANÁLISES / DESEMPENHO</p><h1>Relatórios</h1><p class="heading-copy">Acompanhe vendas e reposições em um período selecionado.</p></div>
+    <button class="button button-secondary" @onclick="CarregarAsync">Atualizar dados</button>
+</section>
+
+@if (_erro is not null)
+{
+    <div class="notice notice-error" role="alert"><span>@_erro</span><button class="text-button" @onclick="CarregarAsync">Tentar novamente</button></div>
+}
+
+<div class="report-filters">
+    <label class="field"><span>De</span><input type="date" @bind="_dataInicio" /></label>
+    <label class="field"><span>Até</span><input type="date" @bind="_dataFim" /></label>
+    <button class="button button-quiet" @onclick="LimparPeriodo">Todo o período</button>
+</div>
+
+@if (_carregando)
+{
+    <div class="loading-line"><span></span> Calculando indicadores...</div>
+}
+else
+{
+    <section class="metric-grid" aria-label="Indicadores de vendas">
+        <article class="metric-card metric-products"><div class="metric-top"><span>Vendas concluídas</span><span class="metric-symbol">01</span></div><strong>@VendasDoPeriodo.Count.ToString("D2")</strong><span class="metric-foot">no período selecionado</span></article>
+        <article class="metric-card metric-value"><div class="metric-top"><span>Faturamento</span><span class="metric-symbol">02</span></div><strong class="metric-money">@Faturamento.ToString("C2", _cultura)</strong><span class="metric-foot">sem vendas canceladas</span></article>
+        <article class="metric-card metric-categories"><div class="metric-top"><span>Ticket médio</span><span class="metric-symbol">03</span></div><strong class="metric-money">@TicketMedio.ToString("C2", _cultura)</strong><span class="metric-foot">por venda concluída</span></article>
+        <article class="metric-card metric-alerts"><div class="metric-top"><span>Produtos para repor</span><span class="metric-symbol">04</span></div><strong>@ProdutosBaixos.Count.ToString("D2")</strong><span class="metric-foot">no limite ou abaixo do mínimo</span></article>
+    </section>
+
+    <section class="dashboard-grid report-grid">
+        <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">DESEMPENHO</p><h2>Mais vendidos</h2></div></div>
+            @if (!MaisVendidos.Any())
+            {
+                <div class="empty-state compact-empty"><strong>Sem vendas neste período</strong><p>Conclua vendas para montar este ranking.</p></div>
+            }
+            else
+            {
+                <div class="report-list">
+                    @{ var posicao = 0; }
+                    @foreach (var produto in MaisVendidos)
+                    {
+                        posicao++;
+                        <div class="report-list-row"><span class="report-rank">@posicao.ToString("D2")</span><strong>@produto.Nome</strong><span>@produto.Quantidade un. · @produto.Total.ToString("C2", _cultura)</span></div>
+                    }
+                </div>
+            }
+        </article>
+        <article class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">ESTOQUE</p><h2>Reposição necessária</h2></div><a class="inline-link" href="/produtos">Ver produtos</a></div>
+            @if (ProdutosBaixos.Count == 0)
+            {
+                <div class="empty-state compact-empty"><strong>Estoque em ordem</strong><p>Nenhum produto está abaixo do mínimo.</p></div>
+            }
+            else
+            {
+                <div class="report-list">
+                    @foreach (var produto in ProdutosBaixos.OrderBy(item => item.QuantidadeEstoque - item.EstoqueMinimo).Take(6))
+                    {
+                        <div class="report-list-row"><span class="report-rank">!</span><strong>@produto.Nome</strong><span>@produto.QuantidadeEstoque un. · mín. @produto.EstoqueMinimo</span></div>
+                    }
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private List<ProdutoDto> _produtos = [];
+    private List<VendaDto> _vendas = [];
+    private DateTime? _dataInicio;
+    private DateTime? _dataFim;
+    private bool _carregando = true;
+    private string? _erro;
+
+    private List<VendaDto> VendasDoPeriodo => _vendas
+        .Where(venda => venda.Status != "Cancelada")
+        .Where(venda => _dataInicio is null || venda.Data.Date >= _dataInicio.Value.Date)
+        .Where(venda => _dataFim is null || venda.Data.Date <= _dataFim.Value.Date)
+        .ToList();
+
+    private decimal Faturamento => VendasDoPeriodo.Sum(venda => venda.ValorTotal);
+    private decimal TicketMedio => VendasDoPeriodo.Count == 0 ? 0 : Faturamento / VendasDoPeriodo.Count;
+    private List<ProdutoDto> ProdutosBaixos => _produtos.Where(produto => produto.QuantidadeEstoque <= produto.EstoqueMinimo).ToList();
+    private IEnumerable<(string Nome, int Quantidade, decimal Total)> MaisVendidos => VendasDoPeriodo
+        .SelectMany(venda => venda.Itens)
+        .GroupBy(item => item.ProdutoNome)
+        .Select(grupo => (Nome: grupo.Key, Quantidade: grupo.Sum(item => item.Quantidade), Total: grupo.Sum(item => item.Subtotal)))
+        .OrderByDescending(item => item.Quantidade)
+        .Take(6);
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        _erro = null;
+        try
+        {
+            var produtosTask = Api.ListarProdutosAsync();
+            var vendasTask = Api.ListarVendasAsync();
+            await Task.WhenAll(produtosTask, vendasTask);
+            _produtos = await produtosTask;
+            _vendas = await vendasTask;
+        }
+        catch (Exception exception) { _erro = exception.Message; }
+        finally { _carregando = false; }
+    }
+
+    private void LimparPeriodo()
+    {
+        _dataInicio = null;
+        _dataFim = null;
+    }
+}

@@ -1,0 +1,194 @@
+@page "/vendas"
+@using System.Security.Claims
+@inject EstoqueApiClient Api
+@inject PdvAuthenticationStateProvider AuthState
+@inject IJSRuntime JavaScript
+
+<PageTitle>Vendas | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">OPERAÇÃO / CAIXA</p><h1>Vendas</h1><p class="heading-copy">Monte o carrinho, escolha o pagamento e conclua a venda.</p></div>
+    <a class="button button-secondary" href="/relatorios">Ver relatórios</a>
+</section>
+
+@if (_mensagem is not null)
+{
+    <div class="notice @(_erro ? "notice-error" : "notice-success")" role="status"><span>@_mensagem</span><button class="notice-close" @onclick="() => _mensagem = null" aria-label="Fechar aviso">×</button></div>
+}
+
+@if (_carregando)
+{
+    <div class="loading-line"><span></span> Preparando o caixa...</div>
+}
+else
+{
+    <section class="sales-layout">
+        <article class="panel sales-panel">
+            <div class="panel-heading"><div><p class="eyebrow">NOVA VENDA</p><h2>Adicionar produtos</h2></div></div>
+            <label class="field"><span>Produto</span><select @bind="_produtoSelecionadoId"><option value="0">Selecione um produto...</option>@foreach (var produto in _produtos.OrderBy(item => item.Nome)){<option value="@produto.Id" disabled="@(produto.QuantidadeEstoque == 0)">@produto.Nome · @produto.QuantidadeEstoque disponíveis · @produto.PrecoVenda.ToString("C2", _cultura)</option>}</select></label>
+            <div class="sales-add-row">
+                <label class="field"><span>Quantidade</span><input type="number" min="1" @bind="_quantidadeSelecionada" /></label>
+                <button class="button button-secondary" @onclick="AdicionarProduto" disabled="@(_produtoSelecionadoId == 0)">Adicionar ao carrinho</button>
+            </div>
+            <label class="field"><span>Cliente <small>OPCIONAL</small></span><select @bind="_clienteSelecionadoId"><option value="">Consumidor final</option>@foreach (var cliente in _clientes.OrderBy(item => item.Nome)){<option value="@cliente.Id">@cliente.Nome</option>}</select></label>
+            <label class="field"><span>Forma de pagamento</span><select @bind="_formaPagamento"><option>Pix</option><option>Dinheiro</option><option>Cartão de débito</option><option>Cartão de crédito</option></select></label>
+        </article>
+
+        <article class="panel sales-panel">
+            <div class="panel-heading"><div><p class="eyebrow">CONFERÊNCIA</p><h2>Carrinho <span class="count-badge">@_carrinho.Count</span></h2></div></div>
+            @if (_carrinho.Count == 0)
+            {
+                <div class="empty-state compact-empty"><strong>Carrinho vazio</strong><p>Adicione produtos para iniciar a venda.</p></div>
+            }
+            else
+            {
+                <div class="sales-cart-list">
+                    @foreach (var item in _carrinho)
+                    {
+                        <div class="sales-cart-row" @key="item.Produto.Id">
+                            <div class="sales-cart-name"><strong>@item.Produto.Nome</strong><small>@item.Produto.PrecoVenda.ToString("C2", _cultura) cada</small></div>
+                            <div class="sales-quantity"><button class="icon-button" @onclick="() => AjustarQuantidade(item.Produto.Id, -1)" aria-label="Diminuir quantidade de @item.Produto.Nome">−</button><span>@item.Quantidade</span><button class="icon-button" @onclick="() => AjustarQuantidade(item.Produto.Id, 1)" aria-label="Aumentar quantidade de @item.Produto.Nome">+</button></div>
+                            <strong class="sales-subtotal">@item.Subtotal.ToString("C2", _cultura)</strong>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="sales-total"><span>Total da venda</span><strong>@ValorTotal.ToString("C2", _cultura)</strong></div>
+            <button class="button button-primary sales-submit" @onclick="ConcluirVendaAsync" disabled="@(_carrinho.Count == 0 || _enviando)">@(_enviando ? "Concluindo..." : "Concluir venda")</button>
+        </article>
+    </section>
+
+    <section class="table-panel sales-history-panel">
+        <div class="table-toolbar"><div class="table-title"><h2>Vendas recentes</h2><span class="count-badge">@_vendas.Count</span></div><button class="button button-quiet" @onclick="CarregarAsync">Atualizar</button></div>
+        @if (_vendas.Count == 0)
+        {
+            <div class="empty-state table-empty"><strong>Nenhuma venda registrada</strong><p>As vendas concluídas aparecerão aqui.</p></div>
+        }
+        else
+        {
+            <div class="table-scroll"><table class="data-table">
+                <thead><tr><th>VENDA</th><th>DATA</th><th>CLIENTE</th><th>ITENS</th><th>PAGAMENTO</th><th>TOTAL</th><th>STATUS</th><th><span class="sr-only">Ações</span></th></tr></thead>
+                <tbody>
+                    @foreach (var venda in _vendas.OrderByDescending(item => item.Data))
+                    {
+                        <tr @key="venda.Id">
+                            <td><strong>#@venda.Id.ToString("D4")</strong></td><td>@venda.Data.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td><td>@NomeCliente(venda.ClienteId)</td><td>@venda.Itens.Sum(item => item.Quantidade)</td><td>@venda.FormaPagamento</td><td class="price-cell">@venda.ValorTotal.ToString("C2", _cultura)</td><td><span class="category-tag">@venda.Status</span></td>
+                            <td>@if (venda.Status != "Cancelada"){<button class="icon-button icon-button-danger" @onclick="() => CancelarVendaAsync(venda)" title="Cancelar venda e devolver itens ao estoque" aria-label="Cancelar venda @venda.Id"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button>}</td>
+                        </tr>
+                    }
+                </tbody>
+            </table></div>
+        }
+    </section>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private List<ProdutoDto> _produtos = [];
+    private List<ClienteDto> _clientes = [];
+    private List<VendaDto> _vendas = [];
+    private List<CarrinhoItem> _carrinho = [];
+    private int _produtoSelecionadoId;
+    private int _quantidadeSelecionada = 1;
+    private int? _clienteSelecionadoId;
+    private string _formaPagamento = "Pix";
+    private bool _carregando = true;
+    private bool _enviando;
+    private bool _erro;
+    private string? _mensagem;
+    private decimal ValorTotal => _carrinho.Sum(item => item.Subtotal);
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        try
+        {
+            var produtosTask = Api.ListarProdutosAsync();
+            var clientesTask = Api.ListarClientesAsync();
+            var vendasTask = Api.ListarVendasAsync();
+            await Task.WhenAll(produtosTask, clientesTask, vendasTask);
+            _produtos = await produtosTask;
+            _clientes = await clientesTask;
+            _vendas = await vendasTask;
+        }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _carregando = false; }
+    }
+
+    private void AdicionarProduto()
+    {
+        var produto = _produtos.FirstOrDefault(item => item.Id == _produtoSelecionadoId);
+        if (produto is null || _quantidadeSelecionada <= 0) return;
+
+        var itemExistente = _carrinho.FirstOrDefault(item => item.Produto.Id == produto.Id);
+        if (_quantidadeSelecionada + (itemExistente?.Quantidade ?? 0) > produto.QuantidadeEstoque)
+        {
+            MostrarErro(new InvalidOperationException($"Há apenas {produto.QuantidadeEstoque} unidades de {produto.Nome} disponíveis."));
+            return;
+        }
+
+        if (itemExistente is null) _carrinho.Add(new CarrinhoItem(produto, _quantidadeSelecionada));
+        else itemExistente.Quantidade += _quantidadeSelecionada;
+        _mensagem = null;
+        _quantidadeSelecionada = 1;
+    }
+
+    private void AjustarQuantidade(int produtoId, int ajuste)
+    {
+        var item = _carrinho.FirstOrDefault(carrinhoItem => carrinhoItem.Produto.Id == produtoId);
+        if (item is null) return;
+        var novaQuantidade = item.Quantidade + ajuste;
+        if (novaQuantidade <= 0) { _carrinho.Remove(item); return; }
+        if (novaQuantidade > item.Produto.QuantidadeEstoque)
+        {
+            MostrarErro(new InvalidOperationException($"Há apenas {item.Produto.QuantidadeEstoque} unidades de {item.Produto.Nome} disponíveis."));
+            return;
+        }
+        item.Quantidade = novaQuantidade;
+    }
+
+    private async Task ConcluirVendaAsync()
+    {
+        _enviando = true;
+        try
+        {
+            var estado = await AuthState.GetAuthenticationStateAsync();
+            var usuarioId = int.TryParse(estado.User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            if (usuarioId <= 0) throw new InvalidOperationException("Não foi possível identificar o usuário autenticado.");
+
+            await Api.CriarVendaAsync(new VendaRequestModel
+            {
+                ClienteId = _clienteSelecionadoId,
+                UsuarioId = usuarioId,
+                FormaPagamento = _formaPagamento,
+                Itens = _carrinho.Select(item => new ItemVendaRequestModel { ProdutoId = item.Produto.Id, Quantidade = item.Quantidade }).ToList()
+            });
+            _carrinho.Clear();
+            _clienteSelecionadoId = null;
+            DefinirSucesso("Venda concluída e estoque atualizado.");
+            await CarregarAsync();
+        }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _enviando = false; }
+    }
+
+    private async Task CancelarVendaAsync(VendaDto venda)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Cancelar a venda #{venda.Id} e devolver os itens ao estoque?")) return;
+        try { await Api.CancelarVendaAsync(venda.Id); DefinirSucesso("Venda cancelada e estoque restaurado."); await CarregarAsync(); }
+        catch (Exception exception) { MostrarErro(exception); }
+    }
+
+    private string NomeCliente(int? clienteId) => clienteId is null ? "Consumidor final" : _clientes.FirstOrDefault(cliente => cliente.Id == clienteId)?.Nome ?? "Cliente";
+    private void DefinirSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
+    private void MostrarErro(Exception exception) { _mensagem = exception.Message; _erro = true; }
+
+    private sealed class CarrinhoItem(ProdutoDto produto, int quantidade)
+    {
+        public ProdutoDto Produto { get; } = produto;
+        public int Quantidade { get; set; } = quantidade;
+        public decimal Subtotal => Produto.PrecoVenda * Quantidade;
+    }
+}

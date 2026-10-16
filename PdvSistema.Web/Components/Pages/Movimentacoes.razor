@@ -1,0 +1,108 @@
+@page "/movimentacoes"
+@inject EstoqueApiClient Api
+
+<PageTitle>Movimentações | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">INVENTÁRIO / AUDITORIA</p><h1>Movimentações</h1><p class="heading-copy">Acompanhe entradas, saídas e ajustes registrados no estoque.</p></div>
+    <a class="button button-primary" href="/produtos">Registrar movimentação</a>
+</section>
+
+@if (_erro is not null)
+{
+    <div class="notice notice-error" role="alert"><span>@_erro</span><button class="text-button" @onclick="CarregarAsync">Tentar novamente</button></div>
+}
+
+<section class="table-panel">
+    <div class="table-toolbar">
+        <div class="table-title"><h2>Histórico</h2><span class="count-badge">@MovimentacoesFiltradas.Count()</span></div>
+        <div class="table-controls">
+            <select class="filter-select" @bind="_produtoFiltro" aria-label="Filtrar por produto">
+                <option value="0">Todos os produtos</option>
+                @foreach (var produto in _produtos.OrderBy(item => item.Nome))
+                {
+                    <option value="@produto.Id">@produto.Nome</option>
+                }
+            </select>
+            <select class="filter-select" @bind="_tipoFiltro" aria-label="Filtrar por tipo">
+                <option value="0">Entradas e saídas</option>
+                <option value="1">Entradas</option>
+                <option value="2">Saídas</option>
+            </select>
+            <input class="filter-select" type="date" @bind="_dataInicio" aria-label="Data inicial" />
+            <input class="filter-select" type="date" @bind="_dataFim" aria-label="Data final" />
+        </div>
+    </div>
+
+    @if (_carregando)
+    {
+        <div class="table-loading"><span class="loading-spinner"></span> Carregando movimentações...</div>
+    }
+    else if (!MovimentacoesFiltradas.Any())
+    {
+        <div class="empty-state table-empty"><strong>Nenhuma movimentação encontrada</strong><p>Altere os filtros ou registre uma entrada ou saída em Produtos.</p></div>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead><tr><th>DATA</th><th>PRODUTO</th><th>TIPO</th><th>QUANTIDADE</th><th>OBSERVAÇÃO</th></tr></thead>
+                <tbody>
+                    @foreach (var movimentacao in MovimentacoesFiltradas)
+                    {
+                        var entrada = movimentacao.Tipo == 1;
+                        <tr @key="movimentacao.Id">
+                            <td>@movimentacao.Data.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                            <td><strong>@movimentacao.ProdutoNome</strong></td>
+                            <td><span class="category-tag">@(entrada ? "Entrada" : "Saída")</span></td>
+                            <td><strong>@(entrada ? "+" : "−")@movimentacao.Quantidade un.</strong></td>
+                            <td class="muted-cell">@(movimentacao.Observacao ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private List<MovimentacaoEstoqueDto> _movimentacoes = [];
+    private List<ProdutoDto> _produtos = [];
+    private int _produtoFiltro;
+    private int _tipoFiltro;
+    private DateTime? _dataInicio;
+    private DateTime? _dataFim;
+    private bool _carregando = true;
+    private string? _erro;
+
+    private IEnumerable<MovimentacaoEstoqueDto> MovimentacoesFiltradas => _movimentacoes
+        .Where(item => _produtoFiltro == 0 || item.ProdutoId == _produtoFiltro)
+        .Where(item => _tipoFiltro == 0 || item.Tipo == _tipoFiltro)
+        .Where(item => _dataInicio is null || item.Data.ToLocalTime().Date >= _dataInicio.Value.Date)
+        .Where(item => _dataFim is null || item.Data.ToLocalTime().Date <= _dataFim.Value.Date)
+        .OrderByDescending(item => item.Data);
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        _erro = null;
+        try
+        {
+            var movimentacoesTask = Api.ListarMovimentacoesAsync();
+            var produtosTask = Api.ListarProdutosAsync();
+            await Task.WhenAll(movimentacoesTask, produtosTask);
+            _movimentacoes = await movimentacoesTask;
+            _produtos = await produtosTask;
+        }
+        catch (Exception exception)
+        {
+            _erro = exception.Message;
+        }
+        finally
+        {
+            _carregando = false;
+        }
+    }
+}

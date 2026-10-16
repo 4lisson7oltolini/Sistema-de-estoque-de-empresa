@@ -25,8 +25,9 @@ public class VendaServiceTests
 
         var repository = new FakeProdutoRepository(produto);
         var vendaRepository = new FakeVendaRepository();
+        var movimentacaoRepository = new FakeMovimentacaoRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var service = new VendaService(repository, vendaRepository, unitOfWork);
+        var service = new VendaService(repository, vendaRepository, movimentacaoRepository, unitOfWork);
 
         var response = await service.CriarAsync(new CriarVendaRequest
         {
@@ -42,6 +43,8 @@ public class VendaServiceTests
         Assert.Equal("Concluida", response.Status);
         Assert.Equal(3, produto.QuantidadeEstoque);
         Assert.Single(vendaRepository.Vendas);
+        Assert.Single(movimentacaoRepository.Movimentacoes);
+        Assert.Equal(TipoMovimentacao.Saida, movimentacaoRepository.Movimentacoes[0].Tipo);
         Assert.Equal(1, unitOfWork.SaveCount);
     }
 
@@ -50,8 +53,9 @@ public class VendaServiceTests
     {
         var repository = new FakeProdutoRepository();
         var vendaRepository = new FakeVendaRepository();
+        var movimentacaoRepository = new FakeMovimentacaoRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var service = new VendaService(repository, vendaRepository, unitOfWork);
+        var service = new VendaService(repository, vendaRepository, movimentacaoRepository, unitOfWork);
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.CriarAsync(new CriarVendaRequest
         {
@@ -77,8 +81,9 @@ public class VendaServiceTests
 
         var repository = new FakeProdutoRepository(produto);
         var vendaRepository = new FakeVendaRepository();
+        var movimentacaoRepository = new FakeMovimentacaoRepository();
         var unitOfWork = new FakeUnitOfWork();
-        var service = new VendaService(repository, vendaRepository, unitOfWork);
+        var service = new VendaService(repository, vendaRepository, movimentacaoRepository, unitOfWork);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CriarAsync(new CriarVendaRequest
         {
@@ -89,6 +94,38 @@ public class VendaServiceTests
                 new CriarItemVendaRequest { ProdutoId = 8, Quantidade = 5 }
             ]
         }));
+    }
+
+    [Fact]
+    public async Task CancelarAsync_DeveRestaurarEstoqueERegistrarEntrada()
+    {
+        var produto = new Produto
+        {
+            Id = 12,
+            Nome = "Arroz",
+            PrecoCusto = 8m,
+            PrecoVenda = 12m,
+            CategoriaId = 1
+        };
+        produto.AdicionarEstoque(5);
+
+        var venda = new Venda { UsuarioId = 2, FormaPagamento = "Pix" };
+        venda.AdicionarItem(produto, 2);
+        venda.Concluir();
+
+        var produtoRepository = new FakeProdutoRepository(produto);
+        var vendaRepository = new FakeVendaRepository(venda);
+        var movimentacaoRepository = new FakeMovimentacaoRepository();
+        var unitOfWork = new FakeUnitOfWork();
+        var service = new VendaService(produtoRepository, vendaRepository, movimentacaoRepository, unitOfWork);
+
+        var cancelada = await service.CancelarAsync(venda.Id);
+
+        Assert.True(cancelada);
+        Assert.Equal(5, produto.QuantidadeEstoque);
+        Assert.Single(movimentacaoRepository.Movimentacoes);
+        Assert.Equal(TipoMovimentacao.Entrada, movimentacaoRepository.Movimentacoes[0].Tipo);
+        Assert.Equal(1, unitOfWork.SaveCount);
     }
 
     private sealed class FakeProdutoRepository : IProdutoRepository
@@ -121,6 +158,8 @@ public class VendaServiceTests
     {
         public List<Venda> Vendas { get; } = [];
 
+        public FakeVendaRepository(params Venda[] vendas) => Vendas.AddRange(vendas);
+
         public Task<Venda?> ObterPorIdAsync(int id) => Task.FromResult(Vendas.FirstOrDefault(v => v.Id == id));
 
         public Task<List<Venda>> ObterTodosAsync() => Task.FromResult(Vendas);
@@ -140,6 +179,25 @@ public class VendaServiceTests
 
         public Task<List<Venda>> ObterPorClienteAsync(int clienteId) =>
             Task.FromResult(Vendas.Where(v => v.ClienteId == clienteId).ToList());
+    }
+
+    private sealed class FakeMovimentacaoRepository : IMovimentacaoEstoqueRepository
+    {
+        public List<MovimentacaoEstoque> Movimentacoes { get; } = [];
+
+        public Task<MovimentacaoEstoque?> ObterPorIdAsync(int id) =>
+            Task.FromResult(Movimentacoes.FirstOrDefault(movimentacao => movimentacao.Id == id));
+
+        public Task<List<MovimentacaoEstoque>> ListarAsync(int? produtoId) =>
+            Task.FromResult(produtoId is null
+                ? Movimentacoes
+                : Movimentacoes.Where(movimentacao => movimentacao.ProdutoId == produtoId).ToList());
+
+        public Task AdicionarAsync(MovimentacaoEstoque movimentacao)
+        {
+            Movimentacoes.Add(movimentacao);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeUnitOfWork : IUnitOfWork

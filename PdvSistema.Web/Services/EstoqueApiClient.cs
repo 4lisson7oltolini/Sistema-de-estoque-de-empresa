@@ -1,24 +1,64 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using PdvSistema.Web.Models;
 
 namespace PdvSistema.Web.Services;
 
 public sealed class EstoqueApiClient(HttpClient http, PdvAuthenticationStateProvider authState)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<List<ProdutoDto>> ListarProdutosAsync() =>
         await ObterAsync<List<ProdutoDto>>("api/Produto") ?? [];
 
     public async Task<List<CategoriaDto>> ListarCategoriasAsync() =>
         await ObterAsync<List<CategoriaDto>>("api/Categoria") ?? [];
 
-    public async Task CriarProdutoAsync(ProdutoFormModel model) =>
-        await EnviarSemRespostaAsync(HttpMethod.Post, "api/Produto", model);
+    public async Task<List<ClienteDto>> ListarClientesAsync() =>
+        await ObterAsync<List<ClienteDto>>("api/Cliente") ?? [];
+
+    public async Task<List<VendaDto>> ListarVendasAsync() =>
+        await ObterAsync<List<VendaDto>>("api/Venda") ?? [];
+
+    public async Task<List<MovimentacaoEstoqueDto>> ListarMovimentacoesAsync(int? produtoId = null) =>
+        await ObterAsync<List<MovimentacaoEstoqueDto>>(produtoId is null
+            ? "api/MovimentacaoEstoque"
+            : $"api/MovimentacaoEstoque?produtoId={produtoId}") ?? [];
+
+    public Task<ProdutoDto> CriarProdutoAsync(ProdutoFormModel model) =>
+        EnviarComRespostaAsync<ProdutoDto>(HttpMethod.Post, "api/Produto", new
+        {
+            model.Nome,
+            model.CodigoBarras,
+            model.PrecoCusto,
+            model.PrecoVenda,
+            model.EstoqueMinimo,
+            model.CategoriaId
+        });
 
     public async Task AtualizarProdutoAsync(ProdutoFormModel model) =>
         await EnviarSemRespostaAsync(HttpMethod.Put, $"api/Produto/{model.Id}", model);
 
     public async Task RemoverProdutoAsync(int id) =>
         await EnviarSemRespostaAsync(HttpMethod.Delete, $"api/Produto/{id}");
+
+    public Task RegistrarMovimentacaoAsync(MovimentacaoEstoqueFormModel model) =>
+        EnviarSemRespostaAsync(HttpMethod.Post, "api/MovimentacaoEstoque", model);
+
+    public Task<ClienteDto> CriarClienteAsync(ClienteFormModel model) =>
+        EnviarComRespostaAsync<ClienteDto>(HttpMethod.Post, "api/Cliente", model);
+
+    public Task AtualizarClienteAsync(int id, ClienteFormModel model) =>
+        EnviarSemRespostaAsync(HttpMethod.Put, $"api/Cliente/{id}", model);
+
+    public Task RemoverClienteAsync(int id) =>
+        EnviarSemRespostaAsync(HttpMethod.Delete, $"api/Cliente/{id}");
+
+    public Task<VendaDto> CriarVendaAsync(VendaRequestModel model) =>
+        EnviarComRespostaAsync<VendaDto>(HttpMethod.Post, "api/Venda", model);
+
+    public Task CancelarVendaAsync(int id) =>
+        EnviarSemRespostaAsync(HttpMethod.Put, $"api/Venda/{id}/cancelar");
 
     public async Task CriarCategoriaAsync(CategoriaFormModel model) =>
         await EnviarSemRespostaAsync(HttpMethod.Post, "api/Categoria", model);
@@ -67,11 +107,30 @@ public sealed class EstoqueApiClient(HttpClient http, PdvAuthenticationStateProv
         if (response.IsSuccessStatusCode)
             return response;
 
-        var erro = await response.Content.ReadFromJsonAsync<ApiError>();
-        var mensagem = erro?.ObterMensagem() ?? $"A API retornou o erro {(int)response.StatusCode}.";
+        var conteudo = await response.Content.ReadAsStringAsync();
         var statusCode = response.StatusCode;
         response.Dispose();
+        var erro = LerErro(conteudo);
+
+        if (statusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            if (!caminho.StartsWith("api/Auth/", StringComparison.OrdinalIgnoreCase))
+                await authState.EncerrarSessaoAsync();
+
+            throw new HttpRequestException("Sua sessão expirou ou não está mais autorizada. Entre novamente.", null, statusCode);
+        }
+
+        var mensagem = erro?.ObterMensagem() ?? $"A API retornou o erro {(int)statusCode}.";
         throw new HttpRequestException(mensagem, null, statusCode);
+    }
+
+    private static ApiError? LerErro(string conteudo)
+    {
+        if (string.IsNullOrWhiteSpace(conteudo))
+            return null;
+
+        try { return JsonSerializer.Deserialize<ApiError>(conteudo, JsonOptions); }
+        catch (JsonException) { return null; }
     }
 
     private sealed class ApiError

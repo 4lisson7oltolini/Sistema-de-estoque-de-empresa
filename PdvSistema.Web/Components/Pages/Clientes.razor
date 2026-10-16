@@ -1,0 +1,127 @@
+@page "/clientes"
+@inject EstoqueApiClient Api
+@inject IJSRuntime JavaScript
+
+<PageTitle>Clientes | Ponto</PageTitle>
+
+<section class="page-heading">
+    <div><p class="eyebrow">CADASTROS / RELACIONAMENTO</p><h1>Clientes</h1><p class="heading-copy">Mantenha os dados de contato organizados para suas vendas.</p></div>
+    <button class="button button-primary" @onclick="AbrirNovo"><span class="button-plus" aria-hidden="true">+</span> Novo cliente</button>
+</section>
+
+@if (_mensagem is not null)
+{
+    <div class="notice @(_erro ? "notice-error" : "notice-success")" role="status"><span>@_mensagem</span><button class="notice-close" @onclick="() => _mensagem = null" aria-label="Fechar aviso">×</button></div>
+}
+
+<section class="table-panel">
+    <div class="table-toolbar">
+        <div class="table-title"><h2>Clientes cadastrados</h2><span class="count-badge">@ClientesFiltrados.Count()</span></div>
+        <label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg><input @bind="_busca" @bind:event="oninput" placeholder="Buscar cliente..." aria-label="Buscar cliente" /></label>
+    </div>
+    @if (_carregando)
+    {
+        <div class="table-loading"><span class="loading-spinner"></span> Carregando clientes...</div>
+    }
+    else if (!ClientesFiltrados.Any())
+    {
+        <div class="empty-state table-empty"><strong>Nenhum cliente encontrado</strong><p>Cadastre um cliente para vinculá-lo às vendas.</p><button class="button button-secondary" @onclick="AbrirNovo">Cadastrar cliente</button></div>
+    }
+    else
+    {
+        <div class="table-scroll"><table class="data-table">
+            <thead><tr><th>CLIENTE</th><th>DOCUMENTO</th><th>TELEFONE</th><th>E-MAIL</th><th>CADASTRO</th><th><span class="sr-only">Ações</span></th></tr></thead>
+            <tbody>
+                @foreach (var cliente in ClientesFiltrados)
+                {
+                    <tr @key="cliente.Id">
+                        <td><strong>@cliente.Nome</strong></td><td>@(cliente.Documento ?? "—")</td><td>@(cliente.Telefone ?? "—")</td><td>@(cliente.Email ?? "—")</td><td>@cliente.DataCadastro.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                        <td><div class="row-actions"><button class="icon-button" @onclick="() => AbrirEdicao(cliente)" title="Editar cliente" aria-label="Editar @cliente.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg></button><button class="icon-button icon-button-danger" @onclick="() => RemoverAsync(cliente)" title="Excluir cliente" aria-label="Excluir @cliente.Nome"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg></button></div></td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    }
+</section>
+
+@if (_mostrarFormulario)
+{
+    <div class="modal-backdrop" @onclick="FecharFormulario">
+        <section class="modal-dialog modal-dialog-small" role="dialog" aria-modal="true" aria-labelledby="client-modal-title" @onclick:stopPropagation="true">
+            <div class="modal-header"><div><p class="eyebrow">RELACIONAMENTO</p><h2 id="client-modal-title">@(_clienteId == 0 ? "Novo cliente" : "Editar cliente")</h2></div><button class="icon-button modal-close" @onclick="FecharFormulario" aria-label="Fechar">×</button></div>
+            <EditForm Model="_form" OnValidSubmit="SalvarAsync">
+                <DataAnnotationsValidator />
+                <label class="field"><span>Nome</span><InputText @bind-Value="_form.Nome" autocomplete="name" /></label><ValidationMessage For="() => _form.Nome" />
+                <label class="field"><span>CPF ou CNPJ</span><InputText @bind-Value="_form.Documento" /></label><ValidationMessage For="() => _form.Documento" />
+                <label class="field"><span>Telefone</span><InputText @bind-Value="_form.Telefone" autocomplete="tel" /></label><ValidationMessage For="() => _form.Telefone" />
+                <label class="field"><span>E-mail</span><InputText @bind-Value="_form.Email" autocomplete="email" /></label><ValidationMessage For="() => _form.Email" />
+                <div class="modal-actions"><button type="button" class="button button-quiet" @onclick="FecharFormulario">Cancelar</button><button type="submit" class="button button-primary" disabled="@_salvando">@(_salvando ? "Salvando..." : "Salvar cliente")</button></div>
+            </EditForm>
+        </section>
+    </div>
+}
+
+@code {
+    private List<ClienteDto> _clientes = [];
+    private ClienteFormModel _form = new();
+    private string _busca = string.Empty;
+    private int _clienteId;
+    private bool _carregando = true;
+    private bool _mostrarFormulario;
+    private bool _salvando;
+    private bool _erro;
+    private string? _mensagem;
+
+    private IEnumerable<ClienteDto> ClientesFiltrados => _clientes
+        .Where(cliente => string.IsNullOrWhiteSpace(_busca)
+            || cliente.Nome.Contains(_busca, StringComparison.OrdinalIgnoreCase)
+            || (cliente.Documento?.Contains(_busca, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (cliente.Email?.Contains(_busca, StringComparison.OrdinalIgnoreCase) ?? false)
+            || (cliente.Telefone?.Contains(_busca, StringComparison.OrdinalIgnoreCase) ?? false))
+        .OrderBy(cliente => cliente.Nome);
+
+    protected override async Task OnInitializedAsync() => await CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        _carregando = true;
+        try { _clientes = await Api.ListarClientesAsync(); }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _carregando = false; }
+    }
+
+    private void AbrirNovo() { _clienteId = 0; _form = new ClienteFormModel(); _mensagem = null; _mostrarFormulario = true; }
+
+    private void AbrirEdicao(ClienteDto cliente)
+    {
+        _clienteId = cliente.Id;
+        _form = new ClienteFormModel { Nome = cliente.Nome, Documento = cliente.Documento, Telefone = cliente.Telefone, Email = cliente.Email };
+        _mensagem = null;
+        _mostrarFormulario = true;
+    }
+
+    private async Task SalvarAsync()
+    {
+        _salvando = true;
+        try
+        {
+            if (_clienteId == 0) { await Api.CriarClienteAsync(_form); DefinirSucesso("Cliente cadastrado."); }
+            else { await Api.AtualizarClienteAsync(_clienteId, _form); DefinirSucesso("Cliente atualizado."); }
+            _mostrarFormulario = false;
+            await CarregarAsync();
+        }
+        catch (Exception exception) { MostrarErro(exception); }
+        finally { _salvando = false; }
+    }
+
+    private async Task RemoverAsync(ClienteDto cliente)
+    {
+        if (!await JavaScript.InvokeAsync<bool>("confirm", $"Excluir o cliente {cliente.Nome}?")) return;
+        try { await Api.RemoverClienteAsync(cliente.Id); DefinirSucesso("Cliente excluído."); await CarregarAsync(); }
+        catch (Exception exception) { MostrarErro(exception); }
+    }
+
+    private void FecharFormulario() => _mostrarFormulario = false;
+    private void DefinirSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
+    private void MostrarErro(Exception exception) { _mensagem = exception.Message; _erro = true; }
+}
