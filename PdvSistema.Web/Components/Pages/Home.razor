@@ -28,6 +28,7 @@ else
 		<article class="metric-card metric-categories"><div class="metric-top"><span>Categorias</span><span class="metric-symbol">02</span></div><strong>@_categorias.Count.ToString("D2")</strong><span class="metric-foot">grupos organizados</span></article>
 		<article class="metric-card metric-alerts"><div class="metric-top"><span>Estoque baixo</span><span class="metric-symbol">03</span></div><strong>@ProdutosBaixos.Count.ToString("D2")</strong><span class="metric-foot">no limite ou abaixo do mínimo</span></article>
 		<article class="metric-card metric-value"><div class="metric-top"><span>Valor em estoque</span><span class="metric-symbol">04</span></div><strong class="metric-money">@ValorEstoque.ToString("C0", _cultura)</strong><span class="metric-foot">estimativa pelo preço de venda</span></article>
+		<article class="metric-card metric-revenue"><div class="metric-top"><span>Faturamento</span><span class="metric-symbol">05</span></div><strong class="metric-money">@Faturamento.ToString("C0", _cultura)</strong><span class="metric-foot">soma dos itens vendidos, sem cancelamentos</span></article>
 	</section>
 
 	<section class="dashboard-grid">
@@ -78,10 +79,12 @@ else
 	private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
 	private List<ProdutoDto> _produtos = [];
 	private List<CategoriaDto> _categorias = [];
+	private List<VendaDto> _vendas = [];
 	private bool _carregando = true;
 	private string? _erro;
 	private List<ProdutoDto> ProdutosBaixos => _produtos.Where(produto => produto.QuantidadeEstoque <= produto.EstoqueMinimo).ToList();
 	private decimal ValorEstoque => _produtos.Sum(produto => produto.PrecoVenda * produto.QuantidadeEstoque);
+	private decimal Faturamento => _vendas.Where(venda => venda.Status != "Cancelada").Sum(venda => venda.Itens.Sum(item => item.Subtotal));
 
 	protected override async Task OnInitializedAsync() => await CarregarAsync();
 
@@ -93,9 +96,11 @@ else
 		{
 			var produtosTask = Api.ListarProdutosAsync();
 			var categoriasTask = Api.ListarCategoriasAsync();
-			await Task.WhenAll(produtosTask, categoriasTask);
+			var vendasTask = Api.ListarVendasAsync();
+			await Task.WhenAll(produtosTask, categoriasTask, vendasTask);
 			_produtos = await produtosTask;
 			_categorias = await categoriasTask;
+			_vendas = await vendasTask;
 		}
 		catch (Exception exception)
 		{

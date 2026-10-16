@@ -59,17 +59,25 @@ else
     </section>
 
     <section class="table-panel sales-history-panel">
-        <div class="table-toolbar"><div class="table-title"><h2>Vendas recentes</h2><span class="count-badge">@_vendas.Count</span></div><button class="button button-quiet" @onclick="CarregarAsync">Atualizar</button></div>
-        @if (_vendas.Count == 0)
+        <div class="table-toolbar">
+            <div class="table-title"><h2>Histórico de vendas</h2><span class="count-badge">@VendasFiltradas.Count()</span></div>
+            <div class="table-controls sales-history-filters">
+                <select class="filter-select" @bind="_clienteFiltroId" aria-label="Filtrar vendas por cliente"><option value="0">Todos os clientes</option>@foreach (var cliente in _clientes.OrderBy(item => item.Nome)){<option value="@cliente.Id">@cliente.Nome</option>}</select>
+                <select class="filter-select" @bind="_categoriaFiltroId" @bind:after="LimparProdutoFiltro" aria-label="Filtrar vendas por categoria"><option value="0">Todas as categorias</option>@foreach (var categoria in _categorias.OrderBy(item => item.Nome)){<option value="@categoria.Id">@categoria.Nome</option>}</select>
+                <select class="filter-select" @bind="_produtoFiltroId" aria-label="Filtrar vendas por produto"><option value="0">Todos os produtos</option>@foreach (var produto in ProdutosDoFiltro.OrderBy(item => item.Nome)){<option value="@produto.Id">@produto.Nome</option>}</select>
+                <button class="button button-quiet" @onclick="LimparFiltros">Limpar</button>
+            </div>
+        </div>
+        @if (!VendasFiltradas.Any())
         {
-            <div class="empty-state table-empty"><strong>Nenhuma venda registrada</strong><p>As vendas concluídas aparecerão aqui.</p></div>
+            <div class="empty-state table-empty"><strong>Nenhuma venda encontrada</strong><p>Altere os filtros ou conclua uma venda para preencher o histórico.</p></div>
         }
         else
         {
             <div class="table-scroll"><table class="data-table">
                 <thead><tr><th>VENDA</th><th>DATA</th><th>CLIENTE</th><th>ITENS</th><th>PAGAMENTO</th><th>TOTAL</th><th>STATUS</th><th><span class="sr-only">Ações</span></th></tr></thead>
                 <tbody>
-                    @foreach (var venda in _vendas.OrderByDescending(item => item.Data))
+                    @foreach (var venda in VendasFiltradas)
                     {
                         <tr @key="venda.Id">
                             <td><strong>#@venda.Id.ToString("D4")</strong></td><td>@venda.Data.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td><td>@NomeCliente(venda.ClienteId)</td><td>@venda.Itens.Sum(item => item.Quantidade)</td><td>@venda.FormaPagamento</td><td class="price-cell">@venda.ValorTotal.ToString("C2", _cultura)</td><td><span class="category-tag">@venda.Status</span></td>
@@ -86,9 +94,13 @@ else
     private static readonly System.Globalization.CultureInfo _cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
     private List<ProdutoDto> _produtos = [];
     private List<ClienteDto> _clientes = [];
+    private List<CategoriaDto> _categorias = [];
     private List<VendaDto> _vendas = [];
     private List<CarrinhoItem> _carrinho = [];
     private int _produtoSelecionadoId;
+    private int _clienteFiltroId;
+    private int _categoriaFiltroId;
+    private int _produtoFiltroId;
     private int _quantidadeSelecionada = 1;
     private int? _clienteSelecionadoId;
     private string _formaPagamento = "Pix";
@@ -97,6 +109,13 @@ else
     private bool _erro;
     private string? _mensagem;
     private decimal ValorTotal => _carrinho.Sum(item => item.Subtotal);
+    private IEnumerable<ProdutoDto> ProdutosDoFiltro => _produtos
+        .Where(produto => _categoriaFiltroId == 0 || produto.CategoriaId == _categoriaFiltroId);
+    private IEnumerable<VendaDto> VendasFiltradas => _vendas
+        .Where(venda => _clienteFiltroId == 0 || venda.ClienteId == _clienteFiltroId)
+        .Where(venda => _produtoFiltroId == 0 || venda.Itens.Any(item => item.ProdutoId == _produtoFiltroId))
+        .Where(VendaContemCategoria)
+        .OrderByDescending(venda => venda.Data);
 
     protected override async Task OnInitializedAsync() => await CarregarAsync();
 
@@ -107,10 +126,12 @@ else
         {
             var produtosTask = Api.ListarProdutosAsync();
             var clientesTask = Api.ListarClientesAsync();
+            var categoriasTask = Api.ListarCategoriasAsync();
             var vendasTask = Api.ListarVendasAsync();
-            await Task.WhenAll(produtosTask, clientesTask, vendasTask);
+            await Task.WhenAll(produtosTask, clientesTask, categoriasTask, vendasTask);
             _produtos = await produtosTask;
             _clientes = await clientesTask;
+            _categorias = await categoriasTask;
             _vendas = await vendasTask;
         }
         catch (Exception exception) { MostrarErro(exception); }
@@ -181,6 +202,15 @@ else
         catch (Exception exception) { MostrarErro(exception); }
     }
 
+    private bool VendaContemCategoria(VendaDto venda)
+    {
+        if (_categoriaFiltroId == 0) return true;
+        var produtosDaCategoria = _produtos.Where(produto => produto.CategoriaId == _categoriaFiltroId).Select(produto => produto.Id).ToHashSet();
+        return venda.Itens.Any(item => produtosDaCategoria.Contains(item.ProdutoId));
+    }
+
+    private void LimparProdutoFiltro() => _produtoFiltroId = 0;
+    private void LimparFiltros() { _clienteFiltroId = 0; _categoriaFiltroId = 0; _produtoFiltroId = 0; }
     private string NomeCliente(int? clienteId) => clienteId is null ? "Consumidor final" : _clientes.FirstOrDefault(cliente => cliente.Id == clienteId)?.Nome ?? "Cliente";
     private void DefinirSucesso(string mensagem) { _mensagem = mensagem; _erro = false; }
     private void MostrarErro(Exception exception) { _mensagem = exception.Message; _erro = true; }
