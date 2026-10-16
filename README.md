@@ -18,7 +18,7 @@ Sistema de gerenciamento de estoque e vendas desenvolvido em C#/.NET.
 - `PdvSistema.Application`: serviços e DTOs.
 - `PdvSistema.Infrastructure`: Entity Framework Core, SQLite e migrations.
 - `PdvSistema.API`: endpoints REST e configuração da aplicação.
-- `PdvSistema.Web`: interface Blazor para painel, produtos e categorias.
+- `PdvSistema.Web`: interface Blazor para painel, estoque, vendas, clientes e relatórios.
 - `PdvSistema.Tests`: testes automatizados.
 
 ## Funcionalidades
@@ -28,7 +28,12 @@ Sistema de gerenciamento de estoque e vendas desenvolvido em C#/.NET.
 - API de movimentação de estoque com validação de saldo e histórico.
 - API de vendas com cálculo de total, itemização e cancelamento com devolução de estoque.
 - API de clientes e usuários.
-- Interface visual responsiva para indicadores, produtos e categorias.
+- Saldo inicial registrado como entrada de estoque ao cadastrar um produto.
+- Histórico de movimentações com filtros por produto, tipo e período; vendas e cancelamentos também geram movimentações.
+- Interface de vendas com carrinho, cliente opcional, forma de pagamento, validação de disponibilidade e cancelamento.
+- Cadastro de clientes com busca, criação, edição e remoção.
+- Relatórios de faturamento, ticket médio, produtos mais vendidos e produtos no mínimo ou abaixo dele, com filtro de período para vendas.
+- Interface visual responsiva para painel, produtos, categorias, movimentações, vendas, clientes e relatórios.
 - Login com token curto, autorização por perfil e configuração inicial de administrador.
 
 ## Como executar
@@ -53,6 +58,15 @@ dotnet run --project PdvSistema.Web/PdvSistema.Web.csproj
 ```
 
 A interface abre em `http://localhost:5209` e consome a API em `http://localhost:5177`. Mantenha os dois processos ativos durante o uso. O endereço da API pode ser ajustado em `PdvSistema.Web/appsettings.json` (`ApiBaseUrl`).
+
+Após entrar no sistema, as telas ficam disponíveis no menu lateral:
+
+- `/produtos`: catálogo, saldo inicial e movimentações de entrada/saída.
+- `/movimentacoes`: histórico de estoque filtrável por produto, tipo e período.
+- `/vendas`: caixa, carrinho e vendas recentes; cancelar uma venda devolve os itens ao estoque.
+- `/clientes`: cadastro e busca de clientes.
+- `/relatorios`: indicadores de vendas e estoque, com filtro de período.
+- `/categorias`: organização dos produtos.
 
 ### Primeiro login
 
