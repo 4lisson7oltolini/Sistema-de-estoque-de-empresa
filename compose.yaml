@@ -1,0 +1,93 @@
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_HTTP_PORTS: 8080
+  HttpsRedirection__Enabled: false
+  ConnectionStrings__DefaultConnection: Data Source=/data/pdvsistema.db
+  Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in .env}
+  Jwt__Issuer: PdvSistema.API
+  Jwt__Audience: PdvSistema.Web
+  Jwt__AccessTokenMinutes: 15
+  Bootstrap__SetupKey: ${BOOTSTRAP_SETUP_KEY:-}
+
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: migrations
+    environment: *api-environment
+    volumes:
+      - pdv_data:/data
+    restart: "no"
+    networks:
+      - internal
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      target: runtime
+    environment: *api-environment
+    volumes:
+      - pdv_data:/data
+    expose:
+      - "8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - internal
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      target: runtime
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      ApiBaseUrl: http://api:8080/
+      DataProtection__KeysDirectory: /var/dpkeys
+      ReverseProxy__KnownProxy: 172.30.0.2
+    volumes:
+      - web_keys:/var/dpkeys
+    expose:
+      - "8080"
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      internal:
+        ipv4_address: 172.30.0.2
+
+volumes:
+  pdv_data:
+  web_keys:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

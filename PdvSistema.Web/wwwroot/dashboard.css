@@ -28,19 +28,21 @@ button { color: inherit; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgba(53, 95, 209, .25); outline-offset: 2px; }
 
 .app-shell { min-height: 100vh; }
-.app-shell .sidebar { background: var(--forest); color: #f5f7f3; display: flex; flex-direction: column; height: 100vh; left: 0; padding: 28px 18px 20px; position: fixed; top: 0; width: 248px; z-index: 20; }
+.app-shell .sidebar { background: var(--forest); color: #f5f7f3; display: flex; flex-direction: column; height: 100vh; left: 0; overflow: hidden; padding: 28px 18px 20px; position: fixed; top: 0; width: 248px; z-index: 20; }
 .brand-lockup { align-items: center; display: flex; gap: 11px; padding: 0 8px 35px; }
 .brand-mark { align-items: center; background: var(--lime); border-radius: 8px; color: var(--forest-deep); display: flex; font-size: 20px; font-weight: 800; height: 40px; justify-content: center; width: 40px; }
 .brand-copy { display: flex; flex-direction: column; gap: 3px; }
 .brand-name { font-size: 18px; font-weight: 800; line-height: 1; }
 .brand-caption, .nav-section-label, .topbar-kicker, .eyebrow, .quick-kicker { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0; }
 .brand-caption { color: #a8b8af; font-size: 9px; }
-.side-navigation { display: flex; flex-direction: column; gap: 5px; }
+.side-navigation { display: flex; flex: 1 1 auto; flex-direction: column; gap: 5px; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-color: rgba(255, 255, 255, .24) transparent; scrollbar-width: thin; }
+.side-navigation::-webkit-scrollbar { width: 6px; }
+.side-navigation::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, .24); border-radius: 6px; }
+.side-navigation .side-link { align-items: center; appearance: none; background: transparent; border: 1px solid transparent; border-radius: 7px; color: #d1dcd5; cursor: pointer; display: flex; flex: 0 0 auto; font-family: inherit; font-size: 13px; font-weight: 600; gap: 12px; line-height: normal; min-height: 43px; padding: 0 12px; text-align: left; transition: background .16s ease, color .16s ease; width: 100%; }
+.side-navigation .side-link svg { fill: none; flex: 0 0 18px; height: 18px; opacity: .8; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; width: 18px; }
+.side-navigation .side-link:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .nav-section-label { color: #92a69b; font-weight: 500; padding: 0 12px; }
 .nav-section-spaced { margin-top: 28px; }
-.side-navigation a.side-link { align-items: center; border-radius: 7px; color: #d1dcd5; display: flex; font-size: 13px; font-weight: 600; gap: 12px; min-height: 43px; padding: 0 12px; transition: background .16s ease, color .16s ease; }
-.side-navigation a.side-link svg { fill: none; height: 18px; opacity: .8; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; width: 18px; }
-.side-navigation a.side-link:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 .side-navigation a.side-link.active { background: rgba(211, 243, 107, .13); color: var(--lime); }
 .side-navigation a.side-link.active svg { opacity: 1; }
 .sidebar-footer { align-items: center; border-top: 1px solid rgba(255, 255, 255, .12); display: flex; gap: 11px; margin-top: auto; padding: 18px 8px 2px; }
@@ -225,7 +227,7 @@ h1 { font-size: clamp(27px, 3vw, 34px); font-weight: 800; letter-spacing: 0; lin
 .not-found-page { margin: 80px auto; max-width: 480px; text-align: center; }
 .not-found-page h1 { margin-bottom: 18px; }
 .sr-only { clip: rect(0, 0, 0, 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
-.side-logout { background: transparent; border: 0; cursor: pointer; font-family: inherit; text-align: left; width: 100%; }
+.side-logout { margin-bottom: 8px; }
 .auth-shell { background: #f7f8f5; display: grid; grid-template-columns: minmax(300px, .82fr) minmax(440px, 1.18fr); min-height: 100vh; }
 .auth-aside { background: var(--forest); color: #f5f7f3; display: flex; flex-direction: column; justify-content: space-between; min-height: 100vh; overflow: hidden; padding: 34px clamp(28px, 5vw, 76px); position: relative; }
 .auth-brand { align-self: flex-start; padding: 0; position: relative; z-index: 1; }
@@ -273,10 +275,10 @@ h1 { font-size: clamp(27px, 3vw, 34px); font-weight: 800; letter-spacing: 0; lin
     .brand-mark { height: 34px; width: 34px; }
     .brand-name { font-size: 15px; }
     .brand-caption { font-size: 8px; }
-    .side-navigation { align-items: center; flex-direction: row; gap: 5px; overflow-x: auto; padding-bottom: 2px; }
+    .side-navigation { align-items: center; flex: 0 0 auto; flex-direction: row; gap: 5px; min-height: auto; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
     .nav-section-label, .sidebar-footer { display: none; }
-    .side-navigation a.side-link { flex: 0 0 auto; font-size: 11px; min-height: 36px; padding: 0 9px; }
-    .side-navigation a.side-link svg { height: 15px; width: 15px; }
+    .side-navigation .side-link { flex: 0 0 auto; font-size: 11px; min-height: 36px; padding: 0 9px; width: auto; }
+    .side-navigation .side-link svg { flex-basis: 15px; height: 15px; width: 15px; }
     .main-area { margin-left: 0; }
     .topbar { height: 54px; padding: 0 18px; }
     .page-content { padding: 31px 18px 42px; }

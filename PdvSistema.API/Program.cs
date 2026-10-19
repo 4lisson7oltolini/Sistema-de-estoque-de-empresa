@@ -17,6 +17,7 @@ using PdvSistema.Infrastructure.Repositories;
 var builder = WebApplication.CreateBuilder(args);
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+var enableHttpsRedirection = builder.Configuration.GetValue("HttpsRedirection:Enabled", true);
 if (Encoding.UTF8.GetByteCount(jwtSettings.SigningKey) < 32)
     throw new InvalidOperationException("Configure uma chave JWT com pelo menos 32 bytes usando User Secrets ou variável de ambiente.");
 if (jwtSettings.AccessTokenMinutes is < 5 or > 60)
@@ -139,7 +140,8 @@ else
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+if (enableHttpsRedirection)
+    app.UseHttpsRedirection();
 app.Use(async (context, next) =>
 {
     context.Response.Headers["X-Content-Type-Options"] = "nosniff";

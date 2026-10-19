@@ -59,6 +59,36 @@ dotnet run --project PdvSistema.Web/PdvSistema.Web.csproj
 
 A interface abre em `http://localhost:5209` e consome a API em `http://localhost:5177`. Mantenha os dois processos ativos durante o uso. O endereço da API pode ser ajustado em `PdvSistema.Web/appsettings.json` (`ApiBaseUrl`).
 
+### Deploy em VPS com Docker Compose
+
+O deploy de referência usa uma VPS Linux com Docker Engine e Docker Compose, um domínio apontado para o IP público e as portas TCP 80 e 443 liberadas. O Caddy termina HTTPS automaticamente; somente o site fica exposto à internet. A API permanece na rede interna do Compose, e o SQLite e as chaves de proteção do Blazor ficam em volumes persistentes.
+
+Clone o repositório na VPS e crie o arquivo local de ambiente:
+
+```bash
+cp .env.example .env
+openssl rand -base64 48
+openssl rand -base64 48
+```
+
+Edite `.env`: informe seu domínio em `DOMAIN` e cole os dois resultados, sem reutilizá-los, em `JWT_SIGNING_KEY` e `BOOTSTRAP_SETUP_KEY`, respectivamente. Não reutilize as chaves de desenvolvimento nem compartilhe o arquivo `.env`.
+
+Com o registro DNS apontando para a VPS, inicie os serviços:
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api web caddy
+```
+
+O serviço `migrate` aplica as migrations pendentes no volume SQLite antes de iniciar a API. Acesse `https://<seu-dominio>/primeiro-acesso` para criar o administrador. Depois do primeiro acesso, remova o valor de `BOOTSTRAP_SETUP_KEY` de `.env` e recrie a API:
+
+```bash
+docker compose up -d --force-recreate api
+```
+
+Faça backup regular do volume `pdv_data` e mantenha os volumes `web_keys`, `caddy_data` e `caddy_config` ao atualizar os containers. **Não use `docker compose down -v`** para atualizar: a opção `-v` apaga os volumes, incluindo o banco. Se a rede `172.30.0.0/24` já estiver ocupada na VPS, altere a sub-rede e o IP fixo do Caddy em `compose.yaml` e atualize `ReverseProxy__KnownProxy` para o mesmo IP.
+
 Após entrar no sistema, as telas ficam disponíveis no menu lateral:
 
 - `/produtos`: catálogo, saldo inicial e movimentações de entrada/saída.
@@ -106,7 +136,7 @@ Em produção, configure `Jwt__SigningKey` e `Bootstrap__SetupKey` no cofre de s
 - Senhas usam `PasswordHasher` e não são devolvidas pela API. O Blazor guarda a sessão em armazenamento protegido de sessão, não em `localStorage`.
 - Rate limit no processo não impede DDoS volumétrico distribuído. Para produção pública, use WAF/CDN, firewall, proxy confiável, monitoramento e limites no host/banco.
 
-O banco SQLite local é criado em `PdvSistema.API/pdvsistema.db` e não deve ser versionado. A interface atual cobre o painel, produtos e categorias; vendas, clientes, usuários e movimentações ainda não têm telas próprias.
+No desenvolvimento local, o banco SQLite é criado em `PdvSistema.API/pdvsistema.db` e não deve ser versionado. No deploy Docker, ele fica no volume persistente `pdv_data`.
 
 Para criar migrations após mudanças no modelo:
 
