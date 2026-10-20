@@ -1,6 +1,7 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        @if (Attribute.IsDefined(routeData.PageType, typeof(AllowAnonymousAttribute)))
+        @if (routeData.PageType == typeof(Pages.Login) ||
+             routeData.PageType == typeof(Pages.PrimeiroAcesso))
         {
             <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
         }
