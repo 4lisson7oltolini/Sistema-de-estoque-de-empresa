@@ -130,17 +130,23 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
-else
+if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler();
     app.UseHsts();
 }
 
-if (enableHttpsRedirection)
+// Documentação OpenAPI disponível em produção.
+app.MapOpenApi().AllowAnonymous();
+
+// Endpoint público para verificar se a API está online.
+app.MapGet("/", () => Results.Ok(new
+{
+    status = "online",
+    service = "PdvSistema.API"
+})).AllowAnonymous();
+
+if (enableHttpsRedirection && app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 app.Use(async (context, next) =>
 {
