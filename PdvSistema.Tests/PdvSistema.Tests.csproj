@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PdvSistema.Domain\PdvSistema.Domain.csproj" />
     <ProjectReference Include="..\PdvSistema.Application\PdvSistema.Application.csproj" />
+    <ProjectReference Include="..\PdvSistema.Infrastructure\PdvSistema.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

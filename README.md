@@ -104,7 +104,24 @@ Gere cada valor separadamente, por exemplo no PowerShell, e guarde-os em um cofr
 [Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
 ```
 
-Não use o mesmo valor para as duas variáveis, não reutilize uma chave de desenvolvimento e não coloque os valores no repositório. O nome `JWT_SIGNING_KEY` é usado pelo `compose.yaml` para preencher `Jwt__SigningKey` no Docker Compose; no Render, configure diretamente `Jwt__SigningKey`, como na tabela. Salve as variáveis e faça um novo deploy. Depois que o primeiro administrador for criado em `/primeiro-acesso`, remova `Bootstrap__SetupKey` do Render para desativar essa configuração inicial. Mantenha `Jwt__SigningKey` estável entre deploys; trocá-la invalida os tokens já emitidos.
+Não use o mesmo valor para as duas variáveis, não reutilize uma chave de desenvolvimento e não coloque os valores no repositório. O nome `JWT_SIGNING_KEY` é usado pelo `compose.yaml` para preencher `Jwt__SigningKey` no Docker Compose; no Render, configure diretamente `Jwt__SigningKey`, como na tabela.
+
+Antes de implantar, configure `ConnectionStrings__DefaultConnection` no Render. Sem essa variável, `appsettings.json` usa `Data Source=pdvsistema.db`, que no container do Render fica relativo ao diretório `/app` e não é persistente. O repositório não contém uma configuração de disco do Render. Para persistir o SQLite, crie/associe um **Persistent Disk** ao serviço, escolha `/var/data` como mount path e configure:
+
+```text
+ConnectionStrings__DefaultConnection=Data Source=/var/data/pdvsistema.db
+```
+
+Faça backup do banco existente e aponte para o caminho correto antes do deploy; não presuma que o banco atualmente aberto pelo serviço seja o mesmo arquivo de um deploy anterior. A API aplica as migrations pendentes no startup usando a mesma configuração de conexão que atende as requisições. Se a migração falhar, o processo não inicia e o erro é registrado. O deploy deve usar uma única instância da API ao compartilhar um arquivo SQLite; para múltiplas instâncias, use um processo de migração único e controlado e uma estratégia de banco compatível com esse cenário.
+
+Para conferir no shell do serviço que a tabela e o histórico de migrations estão no arquivo persistente configurado (requer o utilitário `sqlite3`):
+
+```bash
+sqlite3 /var/data/pdvsistema.db "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'Usuarios';"
+sqlite3 /var/data/pdvsistema.db "SELECT MigrationId FROM __EFMigrationsHistory;"
+```
+
+Salve as variáveis e faça um novo deploy. Depois que o primeiro administrador for criado em `/primeiro-acesso`, remova `Bootstrap__SetupKey` do Render para desativar essa configuração inicial. Mantenha `Jwt__SigningKey` estável entre deploys; trocá-la invalida os tokens já emitidos.
 
 Após entrar no sistema, as telas ficam disponíveis no menu lateral:
 

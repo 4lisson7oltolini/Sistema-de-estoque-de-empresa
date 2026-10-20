@@ -129,6 +129,8 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 var app = builder.Build();
 
+await DatabaseMigrator.ApplyPendingMigrationsAsync(app.Services, app.Logger);
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
