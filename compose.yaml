@@ -49,7 +49,7 @@ services:
       ASPNETCORE_HTTP_PORTS: 8080
       ApiBaseUrl: http://api:8080/
       DataProtection__KeysDirectory: /var/dpkeys
-      ReverseProxy__KnownProxy: 172.30.0.2
+      ReverseProxy__KnownProxy: 172.30.0.10
     volumes:
       - web_keys:/var/dpkeys
     expose:
@@ -78,7 +78,7 @@ services:
     restart: unless-stopped
     networks:
       internal:
-        ipv4_address: 172.30.0.2
+        ipv4_address: 172.30.0.10
 
 volumes:
   pdv_data:

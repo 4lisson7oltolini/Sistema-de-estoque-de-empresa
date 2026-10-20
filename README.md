@@ -89,6 +89,23 @@ docker compose up -d --force-recreate api
 
 Faça backup regular do volume `pdv_data` e mantenha os volumes `web_keys`, `caddy_data` e `caddy_config` ao atualizar os containers. **Não use `docker compose down -v`** para atualizar: a opção `-v` apaga os volumes, incluindo o banco. Se a rede `172.30.0.0/24` já estiver ocupada na VPS, altere a sub-rede e o IP fixo do Caddy em `compose.yaml` e atualize `ReverseProxy__KnownProxy` para o mesmo IP.
 
+### Deploy da API no Render
+
+O erro `Configure uma chave JWT com pelo menos 32 bytes` ocorre quando a API inicia sem a configuração da chave. No serviço da API, abra **Environment** no painel do Render e crie estas variáveis:
+
+| Variável | Valor |
+| --- | --- |
+| `Jwt__SigningKey` | Uma chave aleatória própria para produção, com pelo menos 32 bytes |
+| `Bootstrap__SetupKey` | Outra chave aleatória, diferente da chave JWT, para criar o primeiro administrador |
+
+Gere cada valor separadamente, por exemplo no PowerShell, e guarde-os em um cofre de senhas:
+
+```powershell
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(64))
+```
+
+Não use o mesmo valor para as duas variáveis, não reutilize uma chave de desenvolvimento e não coloque os valores no repositório. O nome `JWT_SIGNING_KEY` é usado pelo `compose.yaml` para preencher `Jwt__SigningKey` no Docker Compose; no Render, configure diretamente `Jwt__SigningKey`, como na tabela. Salve as variáveis e faça um novo deploy. Depois que o primeiro administrador for criado em `/primeiro-acesso`, remova `Bootstrap__SetupKey` do Render para desativar essa configuração inicial. Mantenha `Jwt__SigningKey` estável entre deploys; trocá-la invalida os tokens já emitidos.
+
 Após entrar no sistema, as telas ficam disponíveis no menu lateral:
 
 - `/produtos`: catálogo, saldo inicial e movimentações de entrada/saída.
