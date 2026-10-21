@@ -59,6 +59,14 @@ dotnet run --project PdvSistema.Web/PdvSistema.Web.csproj
 
 A interface abre em `http://localhost:5209` e consome a API em `http://localhost:5177`. Mantenha os dois processos ativos durante o uso. O endereço da API pode ser ajustado em `PdvSistema.Web/appsettings.json` (`ApiBaseUrl`).
 
+### Diagnosticar a comunicação com a API
+
+A interface é um Blazor Web App com renderização interativa no servidor. Os handlers de formulários e botões executam no processo `PdvSistema.Web`, e é esse processo que chama a API usando `ApiBaseUrl`. Por isso, as chamadas à API não aparecem no navegador como requisições `fetch`/XHR: a aba Network mostra os recursos da interface e o circuito Blazor (`/_blazor`), enquanto as chamadas à API devem ser verificadas nos logs do processo Web e da API. Não é necessário configurar CORS para esse fluxo servidor-a-servidor.
+
+Em execução local, `ApiBaseUrl` aponta para `http://localhost:5177/`. No Docker Compose, a variável de ambiente `ApiBaseUrl` aponta para `http://api:8080/`, nome e porta internos da rede Docker. Se hospedar Web e API como serviços separados, configure `ApiBaseUrl` no serviço Web com a URL HTTPS real da API, acessível pelo servidor Web; `localhost` nesse serviço significa o próprio container/host Web, não o serviço da API.
+
+Na API, `GET /` é um probe de disponibilidade do processo e `GET /health` verifica também a conexão com o banco, respondendo `503` se ela falhar. O documento OpenAPI em `/openapi/v1.json` é explicitamente anônimo, enquanto as rotas da API continuam exigindo JWT por padrão. Assim, um `401` nesse documento não é esperado com esta versão da aplicação; confira se a requisição chegou ao serviço/versão corretos e se um proxy ou gateway não está impondo autenticação.
+
 ### Deploy em VPS com Docker Compose
 
 O deploy de referência usa uma VPS Linux com Docker Engine e Docker Compose, um domínio apontado para o IP público e as portas TCP 80 e 443 liberadas. O Caddy termina HTTPS automaticamente; somente o site fica exposto à internet. A API permanece na rede interna do Compose, e o SQLite e as chaves de proteção do Blazor ficam em volumes persistentes.
@@ -113,6 +121,8 @@ ConnectionStrings__DefaultConnection=Data Source=/var/data/pdvsistema.db
 ```
 
 Faça backup do banco existente e aponte para o caminho correto antes do deploy; não presuma que o banco atualmente aberto pelo serviço seja o mesmo arquivo de um deploy anterior. A API aplica as migrations pendentes no startup usando a mesma configuração de conexão que atende as requisições. Se a migração falhar, o processo não inicia e o erro é registrado. O deploy deve usar uma única instância da API ao compartilhar um arquivo SQLite; para múltiplas instâncias, use um processo de migração único e controlado e uma estratégia de banco compatível com esse cenário.
+
+Se hospedar a interface Web separadamente da API, configure também `ApiBaseUrl` no ambiente do serviço Web para a URL HTTPS real da API. Não use `localhost` nesse serviço nem habilite CORS como substituto para essa configuração: a chamada é feita pelo servidor Web.
 
 Para conferir no shell do serviço que a tabela e o histórico de migrations estão no arquivo persistente configurado (requer o utilitário `sqlite3`):
 

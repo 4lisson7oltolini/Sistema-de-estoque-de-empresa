@@ -147,6 +147,25 @@ app.MapGet("/", () => Results.Ok(new
     status = "online",
     service = "PdvSistema.API"
 })).AllowAnonymous();
+app.MapGet("/health", async (
+    PdvSistemaDbContext dbContext,
+    ILogger<Program> logger,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        if (await dbContext.Database.CanConnectAsync(cancellationToken))
+            return Results.Ok(new { status = "healthy" });
+
+        logger.LogWarning("The database health check could not connect to the configured database.");
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+    catch (Exception exception)
+    {
+        logger.LogError(exception, "The database health check failed.");
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+}).AllowAnonymous();
 
 if (enableHttpsRedirection && app.Environment.IsDevelopment())
     app.UseHttpsRedirection();

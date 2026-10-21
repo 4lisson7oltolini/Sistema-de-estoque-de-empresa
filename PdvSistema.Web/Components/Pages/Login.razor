@@ -4,6 +4,7 @@
 @inject EstoqueApiClient Api
 @inject PdvAuthenticationStateProvider AuthState
 @inject NavigationManager Navigation
+@inject ILogger<Login> Logger
 
 <PageTitle>Entrar | Ponto</PageTitle>
 
@@ -52,9 +53,16 @@
             await AuthState.IniciarSessaoAsync(resposta);
             Navigation.NavigateTo("/");
         }
-        catch (Exception)
+        catch (HttpRequestException exception)
         {
-            _erro = "Não foi possível entrar. Confira suas credenciais e tente novamente.";
+            _erro = exception.StatusCode is null
+                ? "Não foi possível conectar à API. Verifique se o serviço está disponível e tente novamente."
+                : exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Unexpected error while signing in.");
+            _erro = "Não foi possível concluir o acesso. Tente novamente ou consulte os logs do servidor.";
         }
         finally
         {

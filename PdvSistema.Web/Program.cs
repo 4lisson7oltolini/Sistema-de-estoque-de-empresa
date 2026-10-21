@@ -8,6 +8,14 @@ using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var apiBaseUrl = builder.Configuration["ApiBaseUrl"];
+if (!Uri.TryCreate(apiBaseUrl, UriKind.Absolute, out var apiUri)
+    || apiUri.Scheme is not ("http" or "https"))
+{
+    throw new InvalidOperationException(
+        "Configure ApiBaseUrl com uma URL absoluta HTTP ou HTTPS para a API.");
+}
+
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -18,7 +26,7 @@ builder.Services.AddScoped<PdvAuthenticationStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(services =>
     services.GetRequiredService<PdvAuthenticationStateProvider>());
 builder.Services.AddHttpClient<EstoqueApiClient>(client =>
-    client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"]!));
+    client.BaseAddress = apiUri);
 
 var dataProtectionKeysDirectory = builder.Configuration["DataProtection:KeysDirectory"];
 if (!string.IsNullOrWhiteSpace(dataProtectionKeysDirectory))

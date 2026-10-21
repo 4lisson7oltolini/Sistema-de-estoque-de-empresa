@@ -4,7 +4,10 @@ using PdvSistema.Web.Models;
 
 namespace PdvSistema.Web.Services;
 
-public sealed class EstoqueApiClient(HttpClient http, PdvAuthenticationStateProvider authState)
+public sealed class EstoqueApiClient(
+    HttpClient http,
+    PdvAuthenticationStateProvider authState,
+    ILogger<EstoqueApiClient> logger)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -103,24 +106,42 @@ public sealed class EstoqueApiClient(HttpClient http, PdvAuthenticationStateProv
         if (!string.IsNullOrWhiteSpace(token))
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-        var response = await http.SendAsync(request);
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.SendAsync(request);
+        }
+        catch (HttpRequestException exception)
+        {
+            logger.LogError(exception, "Could not reach the API for {Method} {Endpoint}.", metodo, caminho);
+            throw;
+        }
+        catch (TaskCanceledException exception)
+        {
+            logger.LogWarning(exception, "The API request timed out for {Method} {Endpoint}.", metodo, caminho);
+            throw;
+        }
+
         if (response.IsSuccessStatusCode)
             return response;
 
         var conteudo = await response.Content.ReadAsStringAsync();
         var statusCode = response.StatusCode;
-        response.Dispose();
         var erro = LerErro(conteudo);
+        response.Dispose();
 
-        if (statusCode == System.Net.HttpStatusCode.Unauthorized)
+        if (statusCode == System.Net.HttpStatusCode.Unauthorized
+            && !caminho.StartsWith("api/Auth/", StringComparison.OrdinalIgnoreCase))
         {
-            if (!caminho.StartsWith("api/Auth/", StringComparison.OrdinalIgnoreCase))
-                await authState.EncerrarSessaoAsync();
-
+            await authState.EncerrarSessaoAsync();
+            logger.LogWarning("The API rejected the session for {Method} {Endpoint} with HTTP {StatusCode}.",
+                metodo, caminho, (int)statusCode);
             throw new HttpRequestException("Sua sessão expirou ou não está mais autorizada. Entre novamente.", null, statusCode);
         }
 
         var mensagem = erro?.ObterMensagem() ?? $"A API retornou o erro {(int)statusCode}.";
+        logger.LogWarning("The API request {Method} {Endpoint} returned HTTP {StatusCode}.",
+            metodo, caminho, (int)statusCode);
         throw new HttpRequestException(mensagem, null, statusCode);
     }
 
